@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise Platform Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 800px;
+      width: 100%;
+      padding: 40px;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .status-card {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin: 30px 0;
+    }
+    
+    .card {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .card-title {
+      color: #666;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+    
+    .card-value {
+      color: #667eea;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #28a745;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    
+    .info-section {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 30px 0;
+    }
+    
+    .info-section h2 {
+      color: #333;
+      font-size: 16px;
+      margin-bottom: 15px;
+    }
+    
+    .info-list {
+      list-style: none;
+    }
+    
+    .info-list li {
+      color: #666;
+      padding: 8px 0;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    
+    .info-list li:last-child {
+      border-bottom: none;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+    
+    .btn-secondary {
+      background: #e9ecef;
+      color: #333;
+    }
+    
+    .btn-secondary:hover {
+      background: #dee2e6;
+      transform: translateY(-2px);
+    }
+    
+    .footer {
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e9ecef;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Enterprise Platform</h1>
+    <p class="subtitle">Production-Ready DevOps Stack</p>
+    
+    <div style="display: flex; align-items: center; margin-bottom: 20px;">
+      <span class="status-indicator"></span>
+      <span style="color: #28a745; font-weight: 600;">System Running</span>
+    </div>
+    
+    <div class="status-card">
+      <div class="card">
+        <div class="card-title">API Status</div>
+        <div class="card-value" id="api-status">✓</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Uptime</div>
+        <div class="card-value" id="uptime">0s</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Memory</div>
+        <div class="card-value" id="memory">0 MB</div>
+      </div>
+    </div>
+    
+    <div class="info-section">
+      <h2>System Information</h2>
+      <ul class="info-list" id="system-info">
+        <li><span>Loading...</span><span>...</span></li>
+      </ul>
+    </div>
+    
+    <div class="button-group">
+      <button class="btn-primary" onclick="checkHealth()">Check Health</button>
+      <button class="btn-secondary" onclick="viewMetrics()">View Metrics</button>
+      <button class="btn-secondary" onclick="viewData()">View Data</button>
+    </div>
+    
+    <div class="footer">
+      <p>🎯 Portfolio Project | DevOps | CI/CD | IaC | Monitoring</p>
+    </div>
+  </div>
+  
+  <script>
+    const API_URL = 'http://localhost:3000';
+    
+    async function checkHealth() {
+      try {
+        const response = await fetch(`${API_URL}/health`);
+        const data = await response.json();
+        alert(`✅ API is healthy!\n\nUptime: ${data.uptime.toFixed(2)} seconds`);
+      } catch (error) {
+        alert('❌ API is not responding');
+      }
+    }
+    
+    async function viewMetrics() {
+      window.open(`${API_URL}/metrics`, '_blank');
+    }
+    
+    async function viewData() {
+      try {
+        const response = await fetch(`${API_URL}/api/data`);
+        const data = await response.json();
+        alert('📊 Data:\n\n' + JSON.stringify(data, null, 2));
+      } catch (error) {
+        alert('❌ Could not fetch data');
+      }
+    }
+    
+    async function updateStatus() {
+      try {
+        const response = await fetch(`${API_URL}/api/status`);
+        const data = await response.json();
+        
+        // Update cards
+        document.getElementById('api-status').textContent = '✓';
+        document.getElementById('uptime').textContent = data.uptime.toFixed(1) + 's';
+        document.getElementById('memory').textContent = (data.memory.heapUsed / 1024 / 1024).toFixed(1) + ' MB';
+        
+        // Update info list
+        const infoHtml = `
+          <li><span>Hostname</span><span>${data.hostname}</span></li>
+          <li><span>Platform</span><span>${data.platform}</span></li>
+          <li><span>Node Version</span><span>${process.version || 'N/A'}</span></li>
+          <li><span>Last Update</span><span>${new Date().toLocaleTimeString()}</span></li>
+        `;
+        document.getElementById('system-info').innerHTML = infoHtml;
+      } catch (error) {
+        document.getElementById('api-status').textContent = '✗';
+        document.getElementById('system-info').innerHTML = '<li><span>API Error</span><span>Not connected</span></li>';
+      }
+    }
+    
+    // Update status every 2 seconds
+    updateStatus();
+    setInterval(updateStatus, 2000);
+  </script>
+</body>
+</html>
