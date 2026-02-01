@@ -1,35 +1,52 @@
 const express = require('express');
-const prometheus = require('prom-client');
+const promClient = require('prom-client');
 const os = require('os');
 
-// Initialize metrics
-const httpRequestDuration = new prometheus.Histogram({
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Create a Registry for Prometheus metrics
+const register = new promClient.Registry();
+
+// Add default metrics (CPU, memory, etc.)
+promClient.collectDefaultMetrics({ 
+  register,
+  prefix: 'api_'
+});
+
+// Custom metrics
+const httpRequestDuration = new promClient.Histogram({
   name: 'http_request_duration_seconds',
   help: 'Duration of HTTP requests in seconds',
   labelNames: ['method', 'route', 'status_code'],
-  buckets: [0.1, 0.5, 1, 2, 5]
+  buckets: [0.1, 0.5, 1, 2, 5],
+  registers: [register]
 });
 
-const httpRequestTotal = new prometheus.Counter({
+const httpRequestsTotal = new promClient.Counter({
   name: 'http_requests_total',
   help: 'Total number of HTTP requests',
-  labelNames: ['method', 'route', 'status_code']
+  labelNames: ['method', 'route', 'status_code'],
+  registers: [register]
 });
 
-const appVersion = new prometheus.Gauge({
+const activeConnections = new promClient.Gauge({
+  name: 'active_connections',
+  help: 'Number of active connections',
+  registers: [register]
+});
+
+const appVersion = new promClient.Gauge({
   name: 'app_info',
   help: 'Application info',
   labelNames: ['version', 'environment'],
-  registers: [prometheus.register]
+  registers: [register]
 });
 
 appVersion.set(
   { version: '1.0.0', environment: 'development' },
   1
 );
-
-const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Middleware to track metrics
 app.use((req, res, next) => {
@@ -41,7 +58,7 @@ app.use((req, res, next) => {
       .labels(req.method, req.path, res.statusCode)
       .observe(duration);
     
-    httpRequestTotal
+    httpRequestsTotal
       .labels(req.method, req.path, res.statusCode)
       .inc();
   });
@@ -62,8 +79,8 @@ app.get('/health', (req, res) => {
 
 // Prometheus metrics endpoint
 app.get('/metrics', async (req, res) => {
-  res.set('Content-Type', prometheus.register.contentType);
-  res.end(await prometheus.register.metrics());
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
 });
 
 // API endpoint
