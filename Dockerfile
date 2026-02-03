@@ -3,9 +3,7 @@ FROM node:18-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm config set registry https://registry.npmjs.org/
-RUN npm config set fetch-retry-maxtimeout 600000 \
- && npm config set fetch-retry-mintimeout 20000
+
 RUN npm install --omit=dev
 
 COPY index.js .
