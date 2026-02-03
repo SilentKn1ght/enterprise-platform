@@ -1,9 +1,22 @@
 const express = require('express');
 const promClient = require('prom-client');
 const os = require('os');
+const winston = require('winston');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configure Winston logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console()
+  ]
+});
 
 // Create a Registry for Prometheus metrics
 const register = new promClient.Registry();
@@ -66,6 +79,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// Middleware to log incoming requests
+app.use((req, res, next) => {
+  logger.info('Incoming request', {
+    method: req.method,
+    path: req.path,
+    ip: req.ip
+  });
+  next();
+});
+
+// Serve static files from frontend
+app.use(express.static('services/frontend'));
+
 // Routes
 
 // Health check endpoint (used by load balancers)
@@ -125,7 +151,10 @@ app.use((req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error(err);
+  logger.error('Error occurred', {
+    message: err.message,
+    stack: err.stack
+  });
   res.status(500).json({
     error: 'Internal Server Error',
     message: err.message
@@ -134,7 +163,8 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`📊 Metrics available at http://localhost:${PORT}/metrics`);
-  console.log(`❤️  Health check at http://localhost:${PORT}/health`);
+  logger.info('Server started', { port: PORT });
+  logger.info(`✅ Server running on http://localhost:${PORT}`);
+  logger.info(`📊 Metrics available at http://localhost:${PORT}/metrics`);
+  logger.info(`❤️  Health check at http://localhost:${PORT}/health`);
 });
