@@ -4,8 +4,8 @@ A production-ready platform demonstrating CI/CD, Infrastructure-as-Code, and pro
 
 ## 🎯 Project Goals
 
-- [ ] Build a 3-tier application (frontend, API, database)
-- [ ] Set up complete monitoring (Prometheus, Grafana, Loki)
+- [x] Build a 3-tier application (frontend, API, database)
+- [x] Set up complete monitoring (Prometheus, Grafana, Loki)
 - [ ] Create CI/CD pipeline (GitHub Actions)
 - [ ] Define infrastructure as code (Terraform)
 - [ ] Deploy to AWS (free tier)
