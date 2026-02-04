@@ -1,0 +1,91 @@
+groups:
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # Alert if app is down
+      - alert: ApplicationDown
+        expr: up{job="enterprise-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "Application is down"
+          description: "The enterprise API has been down for more than 1 minute."
+
+      # Alert if high error rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status_code=~"5.."}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      # Alert if high response time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High response time"
+          description: "95th percentile response time is {{ $value }}s (threshold: 2s)."
+
+      # Alert if high memory usage
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes / 1024 / 1024) > 500
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}MB (threshold: 500MB)."
+
+      # Alert if high CPU usage
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% (threshold: 80%)."
+
+      # Alert if no metrics for 5 minutes
+      - alert: NoMetricsReceived
+        expr: absent(up{job="enterprise-api"})
+        for: 5m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "No metrics received"
+          description: "Prometheus hasn't received metrics from the API for 5 minutes."
+
+      # Alert if Prometheus storage almost full
+      - alert: PrometheusStorageAlmostFull
+        expr: (prometheus_tsdb_storage_blocks_bytes / prometheus_tsdb_storage_blocks_bytes{quantile="1.0"}) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          service: prometheus
+        annotations:
+          summary: "Prometheus storage almost full"
+          description: "Prometheus storage is {{ $value | humanizePercentage }} full."
+
+      # Alert if scrape duration is too high
+      - alert: PrometheusScraping TooSlow
+        expr: prometheus_target_interval_length_seconds{quantile="0.9"} > 15
+        for: 5m
+        labels:
+          severity: warning
+          service: prometheus
+        annotations:
+          summary: "Prometheus scraping too slow"
+          description: "Prometheus is taking {{ $value }}s to scrape metrics (threshold: 15s)."
