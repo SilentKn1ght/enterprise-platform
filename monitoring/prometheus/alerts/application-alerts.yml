@@ -4,7 +4,7 @@ groups:
     rules:
       # Alert if app is down
       - alert: ApplicationDown
-        expr: up{job="enterprise-api"} == 0
+        expr: up{job="enterprise-api"} == 0 OR absent(up{job="enterprise-api"})
         for: 1m
         labels:
           severity: critical
