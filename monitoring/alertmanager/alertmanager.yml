@@ -1,0 +1,52 @@
+global:
+  resolve_timeout: 5m
+
+# Route tree
+route:
+  group_by: ['alertname', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'email-notifications'
+  
+  routes:
+    # Critical alerts go to pagerduty (in production)
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+    
+    # Warning alerts go to slack (in production)
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+
+# Receivers (notification channels)
+receivers:
+  # Default receiver (console for now)
+  - name: 'email-notifications'
+    webhook_configs:
+      - url: 'http://localhost:5001/alert'
+        send_resolved: true
+
+  # Critical alerts
+  - name: 'critical-alerts'
+    webhook_configs:
+      - url: 'http://localhost:5001/critical'
+        send_resolved: true
+
+  # Warning alerts
+  - name: 'warning-alerts'
+    webhook_configs:
+      - url: 'http://localhost:5001/warning'
+        send_resolved: true
+
+# Inhibition rules (suppress alerts)
+inhibit_rules:
+  # If ApplicationDown fires, don't fire HighMemoryUsage, HighCPUUsage, etc.
+  - source_match:
+      severity: 'critical'
+      alertname: 'ApplicationDown'
+    target_match:
+      severity: 'warning'
+    equal: ['service']

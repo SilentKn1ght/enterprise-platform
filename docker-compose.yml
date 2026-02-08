@@ -101,6 +101,14 @@ services:
       - monitoring
     restart: unless-stopped
 
+  webhook-receiver:
+    build: .
+    container_name: webhook-receiver
+    ports:
+      - "5001:5001"
+    networks:
+      - monitoring
+
 networks:
   monitoring:
     driver: bridge
