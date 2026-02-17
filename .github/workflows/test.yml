@@ -7,6 +7,29 @@ on:
     branches: [ main, develop ]
 
 jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: services/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/api
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: services/api
+        run: npm run lint
+
   test:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -40,4 +63,5 @@ jobs:
           files: ./services/api/coverage/lcov.info
           flags: unittests
           name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
