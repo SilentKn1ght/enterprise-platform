@@ -1,7 +1,5 @@
 const request = require('supertest');
-const express = require('express');
 
-// Import your app (we'll refactor index.js to export app)
 const app = require('../app');
 
 describe('Health Endpoint', () => {
