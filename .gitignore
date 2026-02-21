@@ -5,3 +5,9 @@ node_modules/
 dist/
 build/
 coverage/
+
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
