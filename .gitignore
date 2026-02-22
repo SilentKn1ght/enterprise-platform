@@ -6,8 +6,18 @@ dist/
 build/
 coverage/
 
+**/.terraform/*
 *.tfstate
 *.tfstate.*
-.terraform/
-.terraform.lock.hcl
 terraform.tfvars
+*.auto.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
+terraform(A)/main(A).tf
+terraform(A)/outputs(A).tf
+terraform(A)/terraform(A).tfvars
+terraform(A)/variables(A).tf

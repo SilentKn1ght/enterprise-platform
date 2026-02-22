@@ -1,25 +1,25 @@
-# terraform-free-tier/outputs.tf
+output "vpc_id" {
+  description = "VPC ID"
+  value       = module.networking.vpc_id
+}
+
+output "alb_dns_name" {
+  description = "DNS name of load balancer"
+  value       = module.alb.alb_dns_name
+}
 
 output "ecs_cluster_name" {
   description = "ECS cluster name"
-  value       = aws_ecs_cluster.main.name
-}
-
-output "ecs_service_name" {
-  description = "ECS service name"
-  value       = aws_ecs_service.app.name
+  value       = module.ecs.cluster_name
 }
 
 output "rds_endpoint" {
-  description = "RDS instance endpoint"
-  value       = aws_db_instance.postgres.endpoint
+  description = "RDS database endpoint"
+  value       = module.rds.db_endpoint
+  sensitive   = true
 }
 
-output "rds_database_name" {
-  description = "RDS database name"
-  value       = aws_db_instance.postgres.db_name
-}
-output "rds_username" {
-  description = "RDS master username"
-  value       = var.db_username
+output "ecr_repository_url" {
+  description = "ECR repository URL"
+  value       = module.ecs.ecr_repository_url
 }
