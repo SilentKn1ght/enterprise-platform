@@ -3,11 +3,6 @@ output "vpc_id" {
   value       = module.networking.vpc_id
 }
 
-#output "alb_dns_name" {
-#  description = "DNS name of load balancer"
-#  value       = module.alb.alb_dns_name
-#}
-
 #output "ecs_cluster_name" {
 #  description = "ECS cluster name"
 #  value       = module.ecs.cluster_name
@@ -23,3 +18,18 @@ output "vpc_id" {
 #  description = "ECR repository URL"
 #  value       = module.ecs.ecr_repository_url
 #}
+
+output "alb_dns_name" {
+  description = "DNS name of the Application Load Balancer"
+  value       = module.alb.alb_dns_name
+}
+
+output "alb_url" {
+  description = "URL to access the application"
+  value       = "http://${module.alb.alb_dns_name}"
+}
+
+output "target_group_arn" {
+  description = "ARN of the target group"
+  value       = module.alb.target_group_arn
+}

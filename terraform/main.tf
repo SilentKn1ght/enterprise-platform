@@ -50,3 +50,29 @@ module "alb" {
   environment        = var.environment
   project_name       = var.project_name
 }
+
+module "ecs" {
+  source = "./modules/ecs"
+
+  project_name          = var.project_name
+  environment           = var.environment
+  aws_region            = var.aws_region
+
+  vpc_id                = module.networking.vpc_id
+  private_subnet_ids    = module.networking.private_subnet_ids
+  ecs_security_group_id = module.networking.ecs_security_group_id
+
+  app_port              = var.app_port
+  app_count             = var.app_count
+  fargate_cpu           = var.fargate_cpu
+  fargate_memory        = var.fargate_memory
+
+  target_group_arn      = module.alb.target_group_arn
+  alb_listener          = module.alb.http_listener_arn
+  use_load_balancer     = true 
+
+  db_endpoint           = module.rds.db_endpoint
+  db_name               = var.db_name
+  db_username           = var.db_username
+  db_password_secret_arn = aws_secretsmanager_secret.db_password.arn
+}
