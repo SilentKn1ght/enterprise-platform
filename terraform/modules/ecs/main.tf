@@ -167,14 +167,21 @@ resource "aws_ecs_service" "main" {
     assign_public_ip = false
   }
 
-  load_balancer {
-    target_group_arn = var.target_group_arn
-    container_name   = "api"
-    container_port   = var.app_port
+  dynamic "load_balancer" {
+    for_each = var.use_load_balancer ? [1] : []
+    content {
+      target_group_arn = var.target_group_arn
+      container_name   = var.project_name
+      container_port   = var.app_port
+    }
   }
 
-  depends_on = [var.alb_listener]
+  health_check_grace_period_seconds = var.use_load_balancer ? 60 : null
 
+  depends_on = [
+    aws_iam_role_policy_attachment.ecs_task_execution_role
+  ]
+  
   tags = {
     Name = "${var.project_name}-${var.environment}-service"
   }
