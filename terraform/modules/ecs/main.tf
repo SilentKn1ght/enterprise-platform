@@ -179,9 +179,9 @@ resource "aws_ecs_service" "main" {
   health_check_grace_period_seconds = var.use_load_balancer ? 60 : null
 
   depends_on = [
-    aws_iam_role_policy_attachment.ecs_task_execution_role
+    aws_iam_role_policy_attachment.ecs_task_execution
   ]
-  
+
   tags = {
     Name = "${var.project_name}-${var.environment}-service"
   }

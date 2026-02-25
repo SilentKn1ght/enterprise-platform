@@ -78,12 +78,6 @@ variable "db_password_secret_arn" {
   type        = string
 }
 
-variable "target_group_arn" {
-  description = "ALB target group ARN"
-  type        = string
-  default     = ""
-}
-
 variable "use_load_balancer" {
   description = "Whether to attach to load balancer"
   type        = bool

@@ -8,11 +8,11 @@ output "vpc_id" {
 #  value       = module.ecs.cluster_name
 #}
 
-#output "rds_endpoint" {
-#  description = "RDS database endpoint"
-#  value       = module.rds.db_endpoint
-#  sensitive   = true
-#}
+output "rds_endpoint" {
+  description = "RDS database endpoint"
+  value       = module.rds.db_endpoint
+  sensitive   = true
+}
 
 #output "ecr_repository_url" {
 #  description = "ECR repository URL"
@@ -32,4 +32,14 @@ output "alb_url" {
 output "target_group_arn" {
   description = "ARN of the target group"
   value       = module.alb.target_group_arn
+}
+
+output "rds_address" {
+  description = "RDS database address"
+  value       = module.rds.db_address
+}
+
+output "database_name" {
+  description = "Database name"
+  value       = module.rds.db_name
 }
