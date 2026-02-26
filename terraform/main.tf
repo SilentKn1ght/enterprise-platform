@@ -75,6 +75,9 @@ module "ecs" {
   db_name                = var.db_name
   db_username            = var.db_username
   db_password_secret_arn = module.rds.db_password_secret_arn
+
+  min_tasks = var.min_tasks
+  max_tasks = var.max_tasks
 }
 
 # RDS Module

@@ -186,3 +186,78 @@ resource "aws_ecs_service" "main" {
     Name = "${var.project_name}-${var.environment}-service"
   }
 }
+
+# Auto-scaling Target
+resource "aws_appautoscaling_target" "ecs" {
+  max_capacity       = var.max_tasks
+  min_capacity       = var.min_tasks
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.main.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+
+  depends_on = [aws_ecs_service.main]
+}
+
+# Scale Up Policy
+resource "aws_appautoscaling_policy" "scale_up" {
+  name               = "${var.project_name}-scale-up"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+
+    target_value       = var.cpu_scale_up_threshold
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
+}
+
+# CloudWatch Alarms for ECS
+resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
+  alarm_name          = "${var.project_name}-ecs-cpu-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "80"
+  alarm_description   = "ECS service CPU utilization is too high"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = aws_ecs_service.main.name
+  }
+
+  tags = {
+    Name = "${var.project_name}-ecs-cpu-alarm"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
+  alarm_name          = "${var.project_name}-ecs-memory-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "MemoryUtilization"
+  namespace           = "AWS/ECS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "80"
+  alarm_description   = "ECS service memory utilization is too high"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = aws_ecs_service.main.name
+  }
+
+  tags = {
+    Name = "${var.project_name}-ecs-memory-alarm"
+  }
+}

@@ -83,3 +83,27 @@ variable "use_load_balancer" {
   type        = bool
   default     = false
 }
+
+variable "min_tasks" {
+  description = "Minimum number of tasks"
+  type        = number
+  default     = 2
+}
+
+variable "max_tasks" {
+  description = "Maximum number of tasks"
+  type        = number
+  default     = 10
+}
+
+variable "cpu_scale_up_threshold" {
+  description = "CPU percentage to trigger scale up"
+  type        = number
+  default     = 70
+}
+
+variable "cpu_scale_down_threshold" {
+  description = "CPU percentage to trigger scale down"
+  type        = number
+  default     = 30
+}

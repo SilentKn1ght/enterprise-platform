@@ -76,3 +76,15 @@ variable "db_password" {
   type        = string
   sensitive   = true
 }
+
+variable "min_tasks" {
+  description = "Minimum number of ECS tasks"
+  type        = number
+  default     = 2
+}
+
+variable "max_tasks" {
+  description = "Maximum number of ECS tasks"
+  type        = number
+  default     = 10
+}
