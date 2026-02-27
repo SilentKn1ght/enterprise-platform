@@ -1,0 +1,7 @@
+alb_dns_name = "enterprise-platform-alb-1240013568.eu-north-1.elb.amazonaws.com"
+alb_url = "http://enterprise-platform-alb-1240013568.eu-north-1.elb.amazonaws.com"
+database_name = "enterprisedb"
+rds_address = "enterprise-platform-db.c5useyc8ughy.eu-north-1.rds.amazonaws.com"
+rds_endpoint = <sensitive>
+target_group_arn = "arn:aws:elasticloadbalancing:eu-north-1:838054321153:targetgroup/enterprise-platform-tg/4a7ab876ac22a1bc"
+vpc_id = "vpc-0c711a219fb3c0230"

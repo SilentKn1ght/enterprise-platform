@@ -89,7 +89,7 @@ resource "aws_ecs_task_definition" "app" {
 
   container_definitions = jsonencode([
     {
-      name  = "api"
+      name  = var.container_name
       image = "${aws_ecr_repository.app.repository_url}:latest"
 
       portMappings = [
@@ -171,7 +171,7 @@ resource "aws_ecs_service" "main" {
     for_each = var.use_load_balancer ? [1] : []
     content {
       target_group_arn = var.target_group_arn
-      container_name   = var.project_name
+      container_name   = var.container_name
       container_port   = var.app_port
     }
   }

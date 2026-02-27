@@ -107,3 +107,8 @@ variable "cpu_scale_down_threshold" {
   type        = number
   default     = 30
 }
+
+variable "container_name" {
+  type    = string
+  default = "api"
+}

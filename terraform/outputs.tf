@@ -43,3 +43,12 @@ output "database_name" {
   description = "Database name"
   value       = module.rds.db_name
 }
+
+output "aws_region" {
+  value = var.aws_region
+}
+
+output "ecr_repository_url" {
+  description = "ECR repository URL"
+  value       = module.ecs.ecr_repository_url
+}
