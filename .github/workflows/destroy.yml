@@ -2,21 +2,29 @@ name: Auto Destroy Infrastructure
 
 on:
   schedule:
-    - cron: "0 20 * * *"   # 18:00 UTC daily (adjust for your timezone)
-  workflow_dispatch:        # Allow manual trigger
+    - cron: "0 20 * * *"   # 20:00 UTC daily
+  workflow_dispatch:
 
 jobs:
   destroy:
+    name: Destroy Terraform Infrastructure
     runs-on: ubuntu-latest
+    timeout-minutes: 40   # Prevent 6-hour hangs
+
+    defaults:
+      run:
+        working-directory: terraform
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
 
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -24,11 +32,16 @@ jobs:
           aws-region: eu-north-1
 
       - name: Terraform Init
-        run: |
-          cd terraform
-          terraform init
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan Destroy
+        run: terraform plan -destroy -out=destroy.tfplan -input=false
 
       - name: Terraform Destroy
-        run: |
-          cd terraform
-          terraform destroy -auto-approve
+        run: terraform apply -auto-approve destroy.tfplan
+
+      - name: Cleanup Terraform Files
+        run: rm -f destroy.tfplan
