@@ -32,17 +32,13 @@ jobs:
           aws-region: eu-north-1
 
       - name: Get DB password from Secrets Manager
-        id: get_secret
         run: |
-          SECRET=$(aws secretsmanager get-secret-value \
-            --secret-id enterprise-platform/db \
-            --query SecretString \
-            --output text)
+         SECRET=$(aws secretsmanager get-secret-value \
+         --secret-id arn:aws:secretsmanager:eu-north-1:838054321153:secret:enterprise-platform-dev-db-password-otAEVz \
+         --query SecretString \
+         --output text)
 
-          # If secret is stored as JSON: {"db_password":"value"}
-          DB_PASSWORD=$(echo $SECRET | jq -r '.db_password')
-
-          echo "TF_VAR_db_password=$DB_PASSWORD" >> $GITHUB_ENV
+         echo "TF_VAR_db_password=$SECRET" >> $GITHUB_ENV
 
       - name: Terraform Init
         run: terraform init -input=false
