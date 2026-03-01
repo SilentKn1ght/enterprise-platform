@@ -9,7 +9,7 @@ jobs:
   destroy:
     name: Destroy Terraform Infrastructure
     runs-on: ubuntu-latest
-    timeout-minutes: 40   # Prevent 6-hour hangs
+    timeout-minutes: 40
 
     defaults:
       run:
@@ -31,6 +31,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
+      - name: Get DB password from Secrets Manager
+        id: get_secret
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id enterprise-platform/db \
+            --query SecretString \
+            --output text)
+
+          # If secret is stored as JSON: {"db_password":"value"}
+          DB_PASSWORD=$(echo $SECRET | jq -r '.db_password')
+
+          echo "TF_VAR_db_password=$DB_PASSWORD" >> $GITHUB_ENV
+
       - name: Terraform Init
         run: terraform init -input=false
 
@@ -43,5 +56,5 @@ jobs:
       - name: Terraform Destroy
         run: terraform apply -auto-approve destroy.tfplan
 
-      - name: Cleanup Terraform Files
+      - name: Cleanup Plan File
         run: rm -f destroy.tfplan
