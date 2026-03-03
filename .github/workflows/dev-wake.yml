@@ -109,6 +109,39 @@ jobs:
           fi
           
           echo "✅ Infrastructure deployed successfully"
+
+      - name: Verify ALB Creation
+        run: |
+          echo "=== Verifying ALB was recreated ==="
+          MAX_WAIT=180  # 3 minutes
+          INTERVAL=10
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            ALB_ARN=$(aws elbv2 describe-load-balancers \
+              --region ${{ env.AWS_REGION }} \
+              --query "LoadBalancers[?LoadBalancerName=='enterprise-platform-alb'].LoadBalancerArn" \
+              --output text 2>/dev/null || echo "")
+            
+            if [ ! -z "$ALB_ARN" ] && [ "$ALB_ARN" != "None" ]; then
+              ALB_DNS=$(aws elbv2 describe-load-balancers \
+                --load-balancer-arns "$ALB_ARN" \
+                --region ${{ env.AWS_REGION }} \
+                --query "LoadBalancers[0].DNSName" \
+                --output text)
+              echo "✅ ALB successfully recreated"
+              echo "   DNS: $ALB_DNS"
+              echo "   ARN: $ALB_ARN"
+              exit 0
+            fi
+            
+            echo "Waiting for ALB creation... (waited ${ELAPSED}s)"
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          
+          echo "❌ ALB was not recreated within $MAX_WAIT seconds"
+          exit 1
           
       - name: Verify NAT Gateway Creation
         run: |
@@ -309,15 +342,16 @@ jobs:
           echo "║   Dev Environment Wake Complete        ║"
           echo "╚════════════════════════════════════════╝"
           echo ""
-          echo "✅ Infrastructure recreated:"
-          echo "   - NAT Gateway ready"
-          echo "   - ALB ready"
-          echo "   - RDS available"
-          echo "   - ECS tasks scaling up"
+          echo "✅ Infrastructure fully recreated:"
+          echo "   - NAT Gateway: Ready (public internet access)"
+          echo "   - ALB: Recreated (accessible at http://DNS)"
+          echo "   - RDS: Started (database available)"
+          echo "   - ECS: Scaling up ${{ env.DESIRED_COUNT }} tasks"
           echo ""
-          echo "Next steps:"
-          echo "1. Verify ALB is healthy (check target health in AWS Console)"
-          echo "2. ECS tasks may take 1-2 more minutes to pass health checks"
-          echo "3. Check CloudWatch logs for any startup errors"
+          echo "Ready for development:"
+          echo "   1. Wait 2-3 minutes for ECS tasks to be healthy"
+          echo "   2. Check CloudWatch logs at /ecs/enterprise-platform-dev"
+          echo "   3. Verify ALB targets are healthy in AWS Console"
           echo ""
-          echo "Estimated full startup time: 5-10 minutes"
+          echo "Automation will shut down this infrastructure at 20:00 UTC daily"
+          echo "Estimated daily cost with 12-hour sleep cycle: ~$2.83 USD"

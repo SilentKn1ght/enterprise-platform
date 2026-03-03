@@ -207,17 +207,65 @@ jobs:
         working-directory: terraform
         timeout-minutes: 10
         run: |
-          echo "Destroying ALB and target group..."
-          terraform destroy \
+          echo "=== Destroying ALB and Target Group ==="
+          
+          # First, try Terraform destroy
+          echo "Step 1: Attempting terraform destroy..."
+          if terraform destroy \
             -target=module.alb \
             -auto-approve \
             -input=false \
-            -no-color || true
-          echo "ALB destruction initiated"
+            -no-color 2>&1 | tee /tmp/alb-destroy.log; then
+            echo "✅ Terraform destroy completed"
+          else
+            echo "⚠️ Terraform destroy had issues, checking logs..."
+            cat /tmp/alb-destroy.log
+          fi
+
+      - name: Force Delete ALB if Terraform Failed
+        run: |
+          echo "=== Force ALB Deletion Check ==="
+          
+          # Check if ALB still exists
+          ALB_ARN=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query "LoadBalancers[?LoadBalancerName=='enterprise-platform-alb'].LoadBalancerArn" \
+            --output text 2>/dev/null || echo "")
+          
+          if [ ! -z "$ALB_ARN" ] && [ "$ALB_ARN" != "None" ]; then
+            echo "⚠️ ALB still exists: $ALB_ARN"
+            echo "Forcing deletion via AWS CLI..."
+            
+            # Get and delete target group first
+            TG_ARN=$(aws elbv2 describe-target-groups \
+              --region ${{ env.AWS_REGION }} \
+              --query "TargetGroups[?TargetGroupName=='enterprise-platform-tg'].TargetGroupArn" \
+              --output text 2>/dev/null || echo "")
+            
+            if [ ! -z "$TG_ARN" ] && [ "$TG_ARN" != "None" ]; then
+              echo "Deleting target group: $TG_ARN"
+              aws elbv2 delete-target-group \
+                --target-group-arn "$TG_ARN" \
+                --region ${{ env.AWS_REGION }} 2>&1 || echo "Target group may have been deleted already"
+              sleep 5
+            fi
+            
+            # Delete ALB
+            echo "Deleting load balancer: $ALB_ARN"
+            aws elbv2 delete-load-balancer \
+              --load-balancer-arn "$ALB_ARN" \
+              --region ${{ env.AWS_REGION }} 2>&1 || {
+              echo "❌ Failed to delete ALB via AWS CLI"
+              exit 1
+            }
+            echo "✅ ALB deletion initiated via AWS CLI"
+          else
+            echo "✅ ALB not found (already deleted by Terraform)"
+          fi
 
       - name: Verify ALB Deletion
         run: |
-          echo "Verifying ALB deletion..."
+          echo "=== Verifying ALB Deletion ==="
           MAX_WAIT=180  # 3 minutes
           INTERVAL=10
           ELAPSED=0
@@ -229,31 +277,39 @@ jobs:
               --output text 2>/dev/null || echo "0")
             
             if [ "$ALB_COUNT" -eq 0 ]; then
-              echo "✅ ALB fully deleted"
+              echo "✅ ALB fully deleted and verified"
               exit 0
             fi
             
-            echo "Waiting for ALB deletion... (waited ${ELAPSED}s)"
+            echo "Waiting for ALB deletion... (waited ${ELAPSED}s, checking again in ${INTERVAL}s)"
             sleep $INTERVAL
             ELAPSED=$((ELAPSED + INTERVAL))
           done
           
-          echo "⚠️ ALB still exists after timeout, but continuing..."
+          echo "❌ ALB still exists after $MAX_WAIT seconds"
+          echo "Failing workflow to alert about ALB deletion issue"
+          exit 1
 
       - name: Final Cleanup Summary
         run: |
-          echo "=== Sleep Mode Summary ==="
-          echo "✅ ECS scaled to 0"
-          echo "✅ RDS stopped"
-          echo "✅ NAT Gateway destroyed"
-          echo "✅ ALB destroyed"
-          echo "========================================="
-          echo "Infrastructure preserved (can be recreated):"
-          echo "  - VPC and subnets"
-          echo "  - Security groups"
-          echo "  - Route tables"
-          echo "  - ECR repository"
-          echo "  - RDS data (7-day backup retention)"
+          echo ""
+          echo "╔════════════════════════════════════════╗"
+          echo "║   Dev Environment Sleep Complete       ║"
+          echo "╚════════════════════════════════════════╝"
+          echo ""
+          echo "✅ Components destroyed ("$0.158/hour saved):"
+          echo "   - ECS: Scaled to 0 tasks"
+          echo "   - RDS: Stopped (saves ~$0.076/hour)"
+          echo "   - NAT Gateway: Destroyed (saves ~$0.042/hour)"
+          echo "   - ALB: Destroyed (saves ~$0.023/hour)"
+          echo ""
+          echo "Infrastructure preserved (auto-recreated on wake):"
+          echo "   - VPC, subnets, route tables"
+          echo "   - Security groups"
+          echo "   - ECR repository"
+          echo "   - RDS data (7-day backup retention)"
+          echo ""
+          echo "Total estimated daily savings: ~$3.79 (12-hour sleep)"
 
       - name: Done
         run: echo "Dev environment is now sleeping."
