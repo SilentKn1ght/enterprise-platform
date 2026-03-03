@@ -36,15 +36,15 @@ jobs:
         working-directory: terraform
         run: terraform init
 
-      - name: Recreate NAT Gateway
+      - name: Recreate Networking (VPC, Subnets, NAT Gateway)
         working-directory: terraform
         run: |
-          echo "Applying NAT Gateway..."
+          echo "Applying Networking module..."
           terraform apply \
-            -target=module.networking.aws_nat_gateway.main \
+            -target=module.networking \
             -auto-approve \
             -input=false
-          echo "NAT Gateway applied successfully"
+          echo "Networking applied successfully"
 
       - name: Recreate ALB
         working-directory: terraform
@@ -52,7 +52,8 @@ jobs:
           echo "Applying ALB..."
           terraform apply \
             -target=module.alb \
-            -auto-approve
+            -auto-approve \
+            -input=false
           echo "ALB applied successfully"
 
       # -----------------------------
