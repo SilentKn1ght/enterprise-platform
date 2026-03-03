@@ -354,4 +354,4 @@ jobs:
           echo "   3. Verify ALB targets are healthy in AWS Console"
           echo ""
           echo "Automation will shut down this infrastructure at 20:00 UTC daily"
-          echo "Estimated daily cost with 12-hour sleep cycle: ~$2.83 USD"
+          echo "Estimated daily cost with 12-hour sleep cycle: ~\$2.83 USD"
