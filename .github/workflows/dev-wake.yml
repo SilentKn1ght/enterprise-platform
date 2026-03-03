@@ -1,0 +1,115 @@
+name: Dev Environment Wake Mode
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-north-1
+  CLUSTER: enterprise-platform-dev-cluster
+  SERVICE: enterprise-platform-dev-service
+  DB: enterprise-platform-db
+  DESIRED_COUNT: 2
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # -----------------------------
+      # 1️⃣ RECREATE NAT + ALB
+      # -----------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Recreate NAT Gateway
+        working-directory: terraform
+        run: |
+          terraform apply \
+            -target=module.networking.aws_nat_gateway.main \
+            -auto-approve || true
+
+      - name: Recreate ALB
+        working-directory: terraform
+        run: |
+          terraform apply \
+            -target=module.alb \
+            -auto-approve || true
+
+      # -----------------------------
+      # 2️⃣ START RDS
+      # -----------------------------
+      - name: Start RDS if Needed
+        run: |
+          STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier $DB \
+            --query "DBInstances[0].DBInstanceStatus" \
+            --output text 2>/dev/null)
+
+          echo "Current RDS status: $STATUS"
+
+          if [ "$STATUS" = "stopped" ]; then
+            echo "Starting RDS..."
+            aws rds start-db-instance \
+              --db-instance-identifier $DB
+          elif [ "$STATUS" = "available" ]; then
+            echo "RDS already running."
+          else
+            echo "RDS in state: $STATUS"
+          fi
+
+      - name: Wait for RDS to Become Available
+        run: |
+          while true; do
+            STATUS=$(aws rds describe-db-instances \
+              --db-instance-identifier $DB \
+              --query "DBInstances[0].DBInstanceStatus" \
+              --output text)
+
+            if [ "$STATUS" = "available" ]; then
+              echo "RDS is ready."
+              break
+            fi
+
+            echo "RDS status: $STATUS"
+            sleep 20
+          done
+
+      # -----------------------------
+      # 3️⃣ SCALE ECS BACK UP
+      # -----------------------------
+      - name: Scale ECS Back
+        run: |
+          DESIRED=$(aws ecs describe-services \
+            --cluster $CLUSTER \
+            --services $SERVICE \
+            --query "services[0].desiredCount" \
+            --output text)
+
+          echo "Current ECS desired count: $DESIRED"
+
+          if [ "$DESIRED" -eq "$DESIRED_COUNT" ]; then
+            echo "ECS already scaled up."
+          else
+            echo "Scaling ECS to $DESIRED_COUNT..."
+            aws ecs update-service \
+              --cluster $CLUSTER \
+              --service $SERVICE \
+              --desired-count $DESIRED_COUNT
+          fi
+
+      - name: Done
+        run: echo "Dev environment is now awake."
