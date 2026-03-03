@@ -10,6 +10,7 @@ env:
   CLUSTER: enterprise-platform-dev-cluster
   SERVICE: enterprise-platform-dev-service
   DB: enterprise-platform-db
+  TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
 
 jobs:
   sleep:
@@ -125,7 +126,9 @@ jobs:
           echo "Destroying NAT Gateway..."
           terraform destroy \
             -target=module.networking.aws_nat_gateway.main \
-            -auto-approve || true
+            -auto-approve \
+            -input=false \
+            -no-color || true
           echo "NAT Gateway destruction initiated"
 
       - name: Verify NAT Gateway Deletion
@@ -193,7 +196,9 @@ jobs:
           echo "Attempting to destroy EIP via Terraform..."
           terraform destroy \
             -target=module.networking.aws_eip.nat \
-            -auto-approve || true
+            -auto-approve \
+            -input=false \
+            -no-color || true
 
       # -----------------------------
       # 4️⃣ DESTROY ALB
@@ -205,7 +210,9 @@ jobs:
           echo "Destroying ALB and target group..."
           terraform destroy \
             -target=module.alb \
-            -auto-approve || true
+            -auto-approve \
+            -input=false \
+            -no-color || true
           echo "ALB destruction initiated"
 
       - name: Verify ALB Deletion
