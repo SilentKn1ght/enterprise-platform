@@ -36,25 +36,111 @@ jobs:
         working-directory: terraform
         run: terraform init
 
-      - name: Recreate Networking (VPC, Subnets, NAT Gateway)
-        working-directory: terraform
+      - name: Check NAT Gateway Status
         run: |
-          echo "Applying Networking module..."
-          terraform apply \
-            -target=module.networking \
-            -auto-approve \
-            -input=false
-          echo "Networking applied successfully"
+          echo "Checking NAT Gateway and EIP state..."
+          
+          # Check for orphaned EIPs
+          ORPHANED_EIPS=$(aws ec2 describe-addresses \
+            --filters "Name=tag:Name,Values=enterprise-platform-dev-nat-eip" \
+            --region ${{ env.AWS_REGION }} \
+            --query "Addresses[?AssociationId==null].AllocationId" \
+            --output text)
+          
+          if [ ! -z "$ORPHANED_EIPS" ]; then
+            echo "Found orphaned EIP(s): $ORPHANED_EIPS"
+            for EIP in $ORPHANED_EIPS; do
+              echo "Releasing orphaned EIP: $EIP"
+              aws ec2 release-address --allocation-id "$EIP" --region ${{ env.AWS_REGION }} || true
+            done
+          else
+            echo "No orphaned EIPs found"
+          fi
+          
+          # Check for incomplete NAT Gateway deletions
+          INCOMPLETE_NATS=$(aws ec2 describe-nat-gateways \
+            --filter "Name=tag:Name,Values=enterprise-platform-dev-nat" \
+            --region ${{ env.AWS_REGION }} \
+            --query "NatGateways[?State=='available' || State=='deleting' || State=='failed'].NatGatewayId" \
+            --output text)
+          
+          if [ ! -z "$INCOMPLETE_NATS" ]; then
+            echo "Warning: Found NAT Gateways in transition: $INCOMPLETE_NATS"
+            echo "Waiting for them to stabilize (max 2 min)..."
+            for i in {1..12}; do
+              STATES=$(aws ec2 describe-nat-gateways \
+                --nat-gateway-ids $INCOMPLETE_NATS \
+                --region ${{ env.AWS_REGION }} \
+                --query "NatGateways[].State" \
+                --output text 2>/dev/null || echo "")
+              if [ -z "$STATES" ]; then
+                echo "NAT Gateway fully deleted"
+                break
+              fi
+              echo "Current states: $STATES"
+              sleep 10
+            done
+          fi
 
-      - name: Recreate ALB
+      - name: Recreate Infrastructure
         working-directory: terraform
+        timeout-minutes: 15
         run: |
-          echo "Applying ALB..."
-          terraform apply \
-            -target=module.alb \
+          set -e
+          
+          echo "Step 1: Planning infrastructure changes..."
+          if ! terraform plan -out=tfplan 2>&1 | tee plan.log; then
+            echo "❌ Terraform plan failed!"
+            cat plan.log
+            exit 1
+          fi
+          
+          echo ""
+          echo "Step 2: Applying infrastructure..."
+          if ! terraform apply \
             -auto-approve \
-            -input=false
-          echo "ALB applied successfully"
+            -input=false \
+            -no-color \
+            tfplan 2>&1 | tee apply.log; then
+            echo "❌ Terraform apply failed!"
+            echo "Log contents:"
+            cat apply.log
+            exit 1
+          fi
+          
+          echo "✅ Infrastructure deployed successfully"
+          
+      - name: Verify NAT Gateway Creation
+        run: |
+          echo "Verifying NAT Gateway is operational..."
+          MAX_WAIT=300  # 5 minutes
+          INTERVAL=10
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            NAT_STATUS=$(aws ec2 describe-nat-gateways \
+              --filter "Name=tag:Name,Values=enterprise-platform-dev-nat" \
+              --region ${{ env.AWS_REGION }} \
+              --query "NatGateways[0].State" \
+              --output text 2>/dev/null || echo "NOT_FOUND")
+            
+            if [ "$NAT_STATUS" = "available" ]; then
+              NAT_ID=$(aws ec2 describe-nat-gateways \
+                --filter "Name=tag:Name,Values=enterprise-platform-dev-nat" \
+                --region ${{ env.AWS_REGION }} \
+                --query "NatGateways[0].NatGatewayId" \
+                --output text)
+              echo "✅ NAT Gateway is ready: $NAT_ID"
+              exit 0
+            fi
+            
+            echo "NAT Gateway status: $NAT_STATUS (waited ${ELAPSED}s/${MAX_WAIT}s)"
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          
+          echo "❌ NAT Gateway did not become available within $MAX_WAIT seconds"
+          exit 1
 
       # -----------------------------
       # 2️⃣ START RDS
@@ -139,5 +225,99 @@ jobs:
             echo "ECS scaling requested successfully"
           fi
 
-      - name: Done
-        run: echo "Dev environment is now awake."
+      - name: Wait for ECS Tasks to be Healthy
+        run: |
+          echo "Waiting for ECS tasks to become healthy..."
+          MAX_WAIT=600  # 10 minutes
+          INTERVAL=15
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            RUNNING=$(aws ecs describe-services \
+              --cluster ${{ env.CLUSTER }} \
+              --services ${{ env.SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query "services[0].runningCount" \
+              --output text 2>/dev/null || echo "0")
+            
+            DESIRED=$(aws ecs describe-services \
+              --cluster ${{ env.CLUSTER }} \
+              --services ${{ env.SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query "services[0].desiredCount" \
+              --output text 2>/dev/null || echo "0")
+            
+            if [ "$RUNNING" -eq "$DESIRED" ] && [ "$DESIRED" -eq "${{ env.DESIRED_COUNT }}" ]; then
+              echo "✅ All $RUNNING ECS tasks are running"
+              break
+            fi
+            
+            echo "Progress: $RUNNING/$DESIRED tasks running (waited ${ELAPSED}s)"
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          
+          if [ "$RUNNING" -ne "${{ env.DESIRED_COUNT }}" ]; then
+            echo "⚠️ Not all tasks are running yet, but continuing..."
+          fi
+
+      - name: Verify ALB and Load Balancer
+        run: |
+          echo "Verifying ALB is ready..."
+          ALB_NAME=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query "LoadBalancers[?LoadBalancerName=='enterprise-platform-alb'].LoadBalancerArn" \
+            --output text 2>/dev/null || echo "")
+          
+          if [ ! -z "$ALB_NAME" ]; then
+            ALB_DNS=$(aws elbv2 describe-load-balancers \
+              --load-balancer-arns "$ALB_NAME" \
+              --region ${{ env.AWS_REGION }} \
+              --query "LoadBalancers[0].DNSName" \
+              --output text)
+            echo "✅ ALB is available at: http://$ALB_DNS"
+          else
+            echo "⚠️ ALB not found, may still be initializing"
+          fi
+          
+          # Check target health
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --region ${{ env.AWS_REGION }} \
+            --query "TargetGroups[?TargetGroupName=='enterprise-platform-tg'].TargetGroupArn" \
+            --output text 2>/dev/null || echo "")
+          
+          if [ ! -z "$TG_ARN" ]; then
+            HEALTHY=$(aws elbv2 describe-target-health \
+              --target-group-arn "$TG_ARN" \
+              --region ${{ env.AWS_REGION }} \
+              --query "length(TargetHealthDescriptions[?TargetHealth.State=='healthy'])" \
+              --output text 2>/dev/null || echo "0")
+            
+            TOTAL=$(aws elbv2 describe-target-health \
+              --target-group-arn "$TG_ARN" \
+              --region ${{ env.AWS_REGION }} \
+              --query "length(TargetHealthDescriptions)" \
+              --output text 2>/dev/null || echo "0")
+            
+            echo "Target health: $HEALTHY/$TOTAL targets healthy"
+          fi
+
+      - name: Final Status Report
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════╗"
+          echo "║   Dev Environment Wake Complete        ║"
+          echo "╚════════════════════════════════════════╝"
+          echo ""
+          echo "✅ Infrastructure recreated:"
+          echo "   - NAT Gateway ready"
+          echo "   - ALB ready"
+          echo "   - RDS available"
+          echo "   - ECS tasks scaling up"
+          echo ""
+          echo "Next steps:"
+          echo "1. Verify ALB is healthy (check target health in AWS Console)"
+          echo "2. ECS tasks may take 1-2 more minutes to pass health checks"
+          echo "3. Check CloudWatch logs for any startup errors"
+          echo ""
+          echo "Estimated full startup time: 5-10 minutes"
