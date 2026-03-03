@@ -57,11 +57,11 @@ jobs:
             echo "No orphaned EIPs found"
           fi
           
-          # Check for incomplete NAT Gateway deletions
+          # Check for incomplete NAT Gateway deletions (any non-deleted state)
           INCOMPLETE_NATS=$(aws ec2 describe-nat-gateways \
             --filter "Name=tag:Name,Values=enterprise-platform-dev-nat" \
             --region ${{ env.AWS_REGION }} \
-            --query "NatGateways[?State=='available' || State=='deleting' || State=='failed'].NatGatewayId" \
+            --query "NatGateways[?State!='deleted'].NatGatewayId" \
             --output text)
           
           if [ ! -z "$INCOMPLETE_NATS" ]; then
@@ -73,6 +73,7 @@ jobs:
                 --region ${{ env.AWS_REGION }} \
                 --query "NatGateways[].State" \
                 --output text 2>/dev/null || echo "")
+              
               if [ -z "$STATES" ]; then
                 echo "NAT Gateway fully deleted"
                 break
@@ -80,6 +81,46 @@ jobs:
               echo "Current states: $STATES"
               sleep 10
             done
+          fi
+          
+          # Check for NAT Gateways stuck in "deleted" state
+          DELETED_NATS=$(aws ec2 describe-nat-gateways \
+            --filter "Name=tag:Name,Values=enterprise-platform-dev-nat" \
+            --region ${{ env.AWS_REGION }} \
+            --query "NatGateways[?State=='deleted'].NatGatewayId" \
+            --output text)
+          
+          if [ ! -z "$DELETED_NATS" ]; then
+            echo "⚠️ Found NAT Gateway(s) stuck in deleted state: $DELETED_NATS"
+            echo "Waiting for them to disappear from API (max 3 min)..."
+            MAX_WAIT=180
+            INTERVAL=10
+            ELAPSED=0
+            
+            while [ $ELAPSED -lt $MAX_WAIT ]; do
+              NAT_COUNT=$(aws ec2 describe-nat-gateways \
+                --filter "Name=tag:Name,Values=enterprise-platform-dev-nat" \
+                --region ${{ env.AWS_REGION }} \
+                --query "length(NatGateways)" \
+                --output text)
+              
+              if [ "$NAT_COUNT" -eq 0 ]; then
+                echo "✅ NAT Gateway fully removed from API"
+                break
+              fi
+              
+              echo "Still waiting... ($NAT_COUNT NAT(s) in API, elapsed ${ELAPSED}s)"
+              sleep $INTERVAL
+              ELAPSED=$((ELAPSED + INTERVAL))
+            done
+            
+            if [ "$NAT_COUNT" -gt 0 ]; then
+              echo "⚠️ NAT Gateway still in API after timeout, removing from Terraform state..."
+              cd terraform
+              terraform state rm module.networking.aws_nat_gateway.main 2>/dev/null || true
+              terraform state rm module.networking.aws_eip.nat 2>/dev/null || true
+              cd ..
+            fi
           fi
 
       - name: Recreate Infrastructure
@@ -122,6 +163,25 @@ jobs:
           
           echo ""
           echo "✅ Infrastructure deployed successfully"
+
+      - name: Ensure Networking Module is Ready
+        working-directory: terraform
+        timeout-minutes: 10
+        run: |
+          echo "=== Ensuring Networking Module (NAT + EIP) ==="
+          
+          # Apply networking module to ensure NAT and EIP are properly created
+          echo "Applying networking module..."
+          if terraform apply \
+            -target=module.networking \
+            -auto-approve \
+            -input=false \
+            -no-color 2>&1 | tee networking-apply.log; then
+            echo "✅ Networking module apply completed"
+          else
+            echo "⚠️ Networking module apply had issues, but continuing..."
+            cat networking-apply.log
+          fi
 
       - name: Ensure ALB Module is Applied
         working-directory: terraform
@@ -208,12 +268,40 @@ jobs:
               exit 0
             fi
             
+            if [ "$NAT_STATUS" = "deleted" ]; then
+              echo "⚠️ NAT Gateway stuck in deleted state (waited ${ELAPSED}s)"
+              echo "Waiting for it to fully disappear from API..."
+              sleep 10
+              ELAPSED=$((ELAPSED + 10))
+              continue
+            fi
+            
+            if [ "$NAT_STATUS" = "NOT_FOUND" ]; then
+              echo "❌ NAT Gateway not found after terraform apply"
+              echo "This indicates terraform may not have created it"
+              echo "Checking terraform state..."
+              cd terraform && terraform state list | grep -i nat || echo "NAT not in state"
+              echo "Attempting manual terraform apply of networking module..."
+              cd terraform && terraform apply -target=module.networking -auto-approve -input=false -no-color || true
+              exit 1
+            fi
+            
             echo "NAT Gateway status: $NAT_STATUS (waited ${ELAPSED}s/${MAX_WAIT}s)"
             sleep $INTERVAL
             ELAPSED=$((ELAPSED + INTERVAL))
           done
           
           echo "❌ NAT Gateway did not become available within $MAX_WAIT seconds"
+          echo "Final status: $NAT_STATUS"
+          
+          # Emergency cleanup - remove from state and let next run recreate
+          echo ""
+          echo "Removing NAT from Terraform state for recovery..."
+          cd terraform
+          terraform state rm module.networking.aws_nat_gateway.main 2>/dev/null || true
+          terraform state rm module.networking.aws_eip.nat 2>/dev/null || true
+          echo "State cleaned. Next wake cycle should recreate successfully."
+          
           exit 1
 
       # -----------------------------
