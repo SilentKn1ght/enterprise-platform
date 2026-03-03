@@ -9,6 +9,7 @@ env:
   SERVICE: enterprise-platform-dev-service
   DB: enterprise-platform-db
   DESIRED_COUNT: 2
+  TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
 
 jobs:
   wake:
@@ -41,7 +42,8 @@ jobs:
           echo "Applying NAT Gateway..."
           terraform apply \
             -target=module.networking.aws_nat_gateway.main \
-            -auto-approve
+            -auto-approve \
+            -input=false
           echo "NAT Gateway applied successfully"
 
       - name: Recreate ALB
