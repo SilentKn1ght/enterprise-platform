@@ -96,7 +96,15 @@ jobs:
           fi
           
           echo ""
-          echo "Step 2: Applying infrastructure..."
+          echo "Step 2: Checking for ALB in plan..."
+          if grep -q "aws_lb\|aws_alb\|elasticloadbalancing:.*LoadBalancer" plan.log; then
+            echo "✅ ALB module is included in plan"
+          else
+            echo "⚠️ WARNING: ALB module not found in plan - may already exist"
+          fi
+          
+          echo ""
+          echo "Step 3: Applying infrastructure..."
           if ! terraform apply \
             -auto-approve \
             -input=false \
@@ -108,7 +116,31 @@ jobs:
             exit 1
           fi
           
+          echo ""
+          echo "Step 4: Verifying Terraform outputs..."
+          terraform output -json | head -20
+          
+          echo ""
           echo "✅ Infrastructure deployed successfully"
+
+      - name: Ensure ALB Module is Applied
+        working-directory: terraform
+        timeout-minutes: 10
+        run: |
+          echo "=== Explicit ALB Module Application ==="
+          
+          # Try to apply just the ALB module to ensure it's created
+          echo "Applying ALB module specifically..."
+          if terraform apply \
+            -target=module.alb \
+            -auto-approve \
+            -input=false \
+            -no-color 2>&1 | tee alb-apply.log; then
+            echo "✅ ALB module apply completed"
+          else
+            echo "⚠️ ALB module apply had issues, continuing..."
+            cat alb-apply.log
+          fi
 
       - name: Verify ALB Creation
         run: |
@@ -140,7 +172,16 @@ jobs:
             ELAPSED=$((ELAPSED + INTERVAL))
           done
           
+          # ALB timeout - check what resources exist
           echo "❌ ALB was not recreated within $MAX_WAIT seconds"
+          echo ""
+          echo "Checking available load balancers..."
+          aws elbv2 describe-load-balancers --region ${{ env.AWS_REGION }} --output table
+          
+          echo ""
+          echo "Checking Terraform state..."
+          cd terraform && terraform state list | grep -i alb || echo "No ALB resources in state"
+          
           exit 1
           
       - name: Verify NAT Gateway Creation
