@@ -21,3 +21,5 @@ terraform(A)/main(A).tf
 terraform(A)/outputs(A).tf
 terraform(A)/terraform(A).tfvars
 terraform(A)/variables(A).tf
+INFRASTRUCTURE-ANALYSIS.md
+DEV-WAKE-FIX-SUMMARY.md
