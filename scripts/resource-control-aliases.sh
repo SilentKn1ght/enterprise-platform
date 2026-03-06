@@ -2,22 +2,24 @@
 # Resource Control - Quick Reference & Aliases
 # Add these to your ~/.bashrc or ~/.zshrc for convenient access
 
+PROJECT_DIR="/home/silentkn1ght/projects/enterprise-platform"
+
 # Go to project
 alias ep='cd /home/silentkn1ght/projects/enterprise-platform'
 
 # Quick resource control commands
-alias rc='./scripts/resource-control.sh'              # Run interactive menu
-alias rc-start='./scripts/resource-control.sh start'  # Start all
-alias rc-stop='./scripts/resource-control.sh stop'    # Stop all  
-alias rc-status='./scripts/resource-control.sh status' # Check status
-alias rc-cost='./scripts/resource-control.sh cost'    # View savings
-alias rc-help='./scripts/resource-control.sh help'    # Show help
+alias rc="$PROJECT_DIR/scripts/resource-control.sh"              # Run interactive menu
+alias rc-start="$PROJECT_DIR/scripts/resource-control.sh start"  # Start all
+alias rc-stop="$PROJECT_DIR/scripts/resource-control.sh stop"    # Stop all  
+alias rc-status="$PROJECT_DIR/scripts/resource-control.sh status" # Check status
+alias rc-cost="$PROJECT_DIR/scripts/resource-control.sh cost"    # View savings
+alias rc-help="$PROJECT_DIR/scripts/resource-control.sh help"    # Show help
 
 # Individual control
-alias rc-ecs-start='./scripts/resource-control.sh start-ecs'
-alias rc-ecs-stop='./scripts/resource-control.sh stop-ecs'
-alias rc-rds-start='./scripts/resource-control.sh start-rds'
-alias rc-rds-stop='./scripts/resource-control.sh stop-rds'
+alias rc-ecs-start="$PROJECT_DIR/scripts/resource-control.sh start-ecs"
+alias rc-ecs-stop="$PROJECT_DIR/scripts/resource-control.sh stop-ecs"
+alias rc-rds-start="$PROJECT_DIR/scripts/resource-control.sh start-rds"
+alias rc-rds-stop="$PROJECT_DIR/scripts/resource-control.sh stop-rds"
 
 # Monitoring
 alias rc-watch='watch -n 5 "./scripts/resource-control.sh status"'
