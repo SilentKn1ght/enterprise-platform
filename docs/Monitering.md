@@ -1,8 +1,18 @@
-# Monitoring Guide
+# Monitoring Guide (Local Docker Setup)
 
-## Overview
+⚠️ **This guide covers the optional local monitoring stack (Prometheus + Grafana + Loki).**
 
-This project uses the Prometheus + Grafana + Loki stack for observability.
+For **production AWS monitoring**, see:
+- [ARCHITECTURE.md](ARCHITECTURE.md) - AWS CloudWatch and monitoring overview
+- [OPERATIONS.md](OPERATIONS.md) - Monitoring and alerting procedures
+
+For production, AWS CloudWatch provides native monitoring without needing Prometheus locally.
+
+---
+
+## Overview (Local Docker Stack)
+
+For local development, this project includes the Prometheus + Grafana + Loki stack for observability.
 
 ## Architecture
 

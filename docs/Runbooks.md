@@ -1,6 +1,16 @@
-# Runbooks
+# Runbooks (Deprecated - See OPERATIONS.md)
 
-## ApplicationDown Alert
+⚠️ **This file is deprecated.** It covers Docker Compose-based operations, which is no longer the primary deployment method.
+
+**For AWS ECS Fargate operations, see:** [OPERATIONS.md](OPERATIONS.md)
+
+---
+
+## Docker Compose Runbooks (Legacy)
+
+These procedures are for local development only, using Docker Compose. For production AWS operations, refer to OPERATIONS.md.
+
+### ApplicationDown Alert
 
 **What it means:** The application is not responding to health checks.
 
@@ -25,14 +35,9 @@ docker-compose restart api
 docker-compose up --build -d api
 ```
 
-**Prevention:**
-- Add health check retries
-- Implement graceful shutdown
-- Monitor resource limits
-
 ---
 
-## HighErrorRate Alert
+### HighErrorRate Alert
 
 **What it means:** More than 5% of requests are returning 5xx errors.
 
@@ -49,20 +54,9 @@ docker-compose logs api | grep -i error
 # In Grafana: HTTP Performance dashboard → Status Codes panel
 ```
 
-**Resolution:**
-- Identify failing endpoint from logs
-- Check database connectivity
-- Check external dependencies
-- Review recent code changes
-
-**Prevention:**
-- Add retry logic
-- Implement circuit breakers
-- Add better error handling
-
 ---
 
-## HighResponseTime Alert
+### HighResponseTime Alert
 
 **What it means:** 95th percentile response time exceeds 2 seconds.
 
@@ -78,20 +72,9 @@ docker-compose logs api | grep -i error
 docker-compose logs db | grep "slow"
 ```
 
-**Resolution:**
-- Scale horizontally (add more instances)
-- Optimize slow queries
-- Add caching layer
-- Review recent code changes
-
-**Prevention:**
-- Add query timeouts
-- Implement caching
-- Optimize database indexes
-
 ---
 
-## HighMemoryUsage Alert
+### HighMemoryUsage Alert
 
 **What it means:** Application using more than 500MB of memory.
 
@@ -102,29 +85,11 @@ docker stats api
 
 # 2. Look for memory leaks in logs
 docker-compose logs api | grep -i "heap\|memory"
-
-# 3. Check for memory-intensive operations
-# Review recent endpoint calls in Grafana
 ```
-
-**Resolution:**
-```bash
-# Short term: Restart application
-docker-compose restart api
-
-# Long term: Profile and fix memory leak
-# Use Node.js --inspect flag
-```
-
-**Prevention:**
-- Implement memory limits
-- Add heap snapshots
-- Profile memory usage
-- Implement proper cleanup
 
 ---
 
-## HighCPUUsage Alert
+### HighCPUUsage Alert
 
 **What it means:** CPU usage exceeds 80%.
 
@@ -133,20 +98,12 @@ docker-compose restart api
 # 1. Check what's using CPU
 docker stats
 
-# 2. Check request rate
+# 2. Check request rate and optimize code
 # In Grafana: Application Overview → HTTP Request Rate
-
-# 3. Look for infinite loops or heavy computation
-docker-compose logs api
 ```
 
-**Resolution:**
-- Scale horizontally (add instances)
-- Optimize CPU-intensive code
-- Add rate limiting
-- Implement caching
+---
 
-**Prevention:**
-- Add CPU profiling
+**⚠️ For all production operations on AWS, use [OPERATIONS.md](OPERATIONS.md)**
 - Implement rate limiting
 - Optimize algorithms
