@@ -30,6 +30,24 @@ resource "aws_db_parameter_group" "main" {
     value = "1"
   }
 
+  # Security: Enforce SSL connections
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
+
+  # Security: Log DDL statements
+  parameter {
+    name  = "log_statement"
+    value = "ddl"
+  }
+
+  # Performance: Log slow queries
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
+
   tags = {
     Name        = "${var.project_name}-parameter-group"
     Environment = var.environment
@@ -66,12 +84,14 @@ resource "aws_db_instance" "main" {
   multi_az = var.multi_az
 
   # Deletion protection
-  deletion_protection = false # Set to true for production
-  skip_final_snapshot = true  # Set to false for production
+  deletion_protection = var.deletion_protection
+  skip_final_snapshot = var.skip_final_snapshot
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.project_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
-  # Performance Insights
+  # Performance Insights & Enhanced Monitoring
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
-  performance_insights_enabled    = false # Enable for production
+  performance_insights_enabled    = var.performance_insights_enabled
+  performance_insights_retention_period = 7
 
   # Monitoring
   monitoring_interval = 60

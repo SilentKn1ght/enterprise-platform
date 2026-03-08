@@ -1,0 +1,14 @@
+{
+  "BudgetName": "enterprise-platform-monthly",
+  "BudgetLimit": {
+    "Amount": "150",
+    "Unit": "EUR"
+  },
+  "TimeUnit": "MONTHLY",
+  "BudgetType": "COST",
+  "CostFilters": {
+    "TagKeyValue": [
+      "project_name$enterprise-platform"
+    ]
+  }
+}

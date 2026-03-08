@@ -114,3 +114,99 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
+# Security Group for VPC Endpoints
+resource "aws_security_group" "vpc_endpoints" {
+  name        = "${var.project_name}-${var.environment}-vpc-endpoints-sg"
+  description = "Security group for VPC Endpoints"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "HTTPS from ECS tasks"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs_tasks.id]
+  }
+
+  egress {
+    description = "All outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-vpc-endpoints-sg"
+  }
+}
+
+# VPC Endpoint for Secrets Manager (Interface)
+resource "aws_vpc_endpoint" "secrets_manager" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.secretsmanager"
+  vpc_endpoint_type = "Interface"
+
+  subnet_ids              = aws_subnet.private[*].id
+  security_group_ids      = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled     = true
+  dns_options {
+    dns_record_ip_type = "ipv4"
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-secrets-manager-endpoint"
+  }
+}
+
+# VPC Endpoint for ECR API (Interface)
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.ecr.api"
+  vpc_endpoint_type = "Interface"
+
+  subnet_ids              = aws_subnet.private[*].id
+  security_group_ids      = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled     = true
+  dns_options {
+    dns_record_ip_type = "ipv4"
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-ecr-api-endpoint"
+  }
+}
+
+# VPC Endpoint for ECR DKR (Interface)
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.ecr.dkr"
+  vpc_endpoint_type = "Interface"
+
+  subnet_ids              = aws_subnet.private[*].id
+  security_group_ids      = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled     = true
+  dns_options {
+    dns_record_ip_type = "ipv4"
+  }
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-ecr-dkr-endpoint"
+  }
+}
+
+# VPC Endpoint for S3 (Gateway)
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id       = aws_vpc.main.id
+  service_name = "com.amazonaws.${data.aws_region.current.name}.s3"
+
+  route_table_ids = [aws_route_table.private.id]
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-s3-endpoint"
+  }
+}
+
+# Data source for current AWS region
+data "aws_region" "current" {}
+

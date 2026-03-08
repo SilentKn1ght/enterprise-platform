@@ -52,11 +52,29 @@ variable "engine_version" {
 variable "backup_retention_period" {
   description = "Backup retention period in days"
   type        = number
-  default     = 1
+  default     = 7
 }
 
 variable "multi_az" {
   description = "Enable Multi-AZ deployment"
+  type        = bool
+  default     = false
+}
+
+variable "deletion_protection" {
+  description = "Enable deletion protection"
+  type        = bool
+  default     = false
+}
+
+variable "skip_final_snapshot" {
+  description = "Skip final snapshot when deleting database"
+  type        = bool
+  default     = true
+}
+
+variable "performance_insights_enabled" {
+  description = "Enable Performance Insights"
   type        = bool
   default     = false
 }
