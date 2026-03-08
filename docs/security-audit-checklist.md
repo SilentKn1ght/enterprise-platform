@@ -232,8 +232,9 @@
   - **Status:** PASS - RDS auto_minor_version_upgrade = true
   
 - [x] Backup retention configured for RDS
-  - **Status:** PASS - 7-day backup retention configured
+  - **Status:** PASS - 1-day backup retention configured
   - **Details:** Daily automated backups, backup window 03:00-04:00 UTC
+  - **Note:** AWS Free Tier maximum is 1 day. After free tier upgrade, increase to 7 days for production.
   
 - [x] Disaster recovery plan documented
   - **Status:** PARTIAL - Basic backup strategy, need detailed runbook
@@ -281,6 +282,7 @@
 
 | Issue | Component | Severity | Remediation |
 |-------|-----------|----------|------------|
+| AWS Free Tier Backup Limitation | Database | MEDIUM | Increase backup retention from 1→7 days after free tier upgrade |
 | No VPC Flow Logs | Networking | MEDIUM | Enable for security monitoring |
 | Secrets Rotation Not Automated | Secrets | MEDIUM | Establish rotation policy (90-day cycle) |
 | No API Input Validation | Application | MEDIUM | Verify application code |

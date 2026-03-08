@@ -91,7 +91,7 @@ resource "aws_db_instance" "main" {
   # Performance Insights & Enhanced Monitoring
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
   performance_insights_enabled    = var.performance_insights_enabled
-  performance_insights_retention_period = 7
+  performance_insights_retention_period = var.performance_insights_enabled ? 7 : null
 
   # Monitoring
   monitoring_interval = 60

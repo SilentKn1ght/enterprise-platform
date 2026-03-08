@@ -9,7 +9,9 @@
 
 ## Executive Summary
 
-Current infrastructure costs approximately **€140-150/month** for a development environment. With proposed optimizations using **PATH A (Development-Optimized)**, estimated savings of **€70-80/month** can be achieved, reducing total cost to **€60-70/month**. Cost-benefit: 50% reduction while maintaining dev/test functionality.
+Current infrastructure costs approximately **€141/month** for a development environment. With proposed optimizations, security hardening is **fully deployed** (VPC endpoints, RDS SSL), reducing future costs. Additional cost savings of **€10-15/month** can be achieved by implementing **PATH A task scheduling** (stop tasks 6pm-9am), reducing total cost to **€126-131/month**. 
+
+**Note:** Initial cost analysis predicted €50-70/month savings through memory reduction, but AWS Fargate constraints prevent reducing below 512 MB for 0.25 vCPU tasks. Security hardening is prioritized over aggressive cost cuts in this environment.
 
 ---
 
@@ -49,16 +51,16 @@ Current infrastructure costs approximately **€140-150/month** for a developmen
 
 ### Priority Matrix
 
-#### **HIGH PRIORITY** - Save €70-80/month
+#### **HIGH PRIORITY** - Save €10-20/month
 
 | Optimization | Current | Optimized | Savings | Implementation |
 |--------------|---------|-----------|---------|-----------------|
-| **NAT Gateway Reduction** | 1 × €32.40 | Keep as-is (single) | €0 in dev | Already single NAT |
-| **ECS Right-Sizing** | 0.25 vCPU, 512 MB | 0.25 vCPU, 256 MB | €12/month | Reduce memory if load testing permits |
-| **ECS Task Scheduling** | Always running | Stop 6pm-9am (10 hrs/day) | €10-15/month | EventBridge + Lambda |
-| **Remove VPC Endpoints** (Optional) | 4 endpoints €14.40 | Keep (needed for functionality) | €0 | Essential for private subnet access |
-| **CloudWatch Log Retention** | 30 days | 7 days (revert) | €2-3/month | Reduce retention if compliance allows |
-| **POTENTIAL TOTAL SAVINGS** | **€141.10** | **€60-70** | **€70-80/month** | Adopt PATH A |
+| **ECS Memory Optimization** | 0.25 vCPU, 512 MB | 0.25 vCPU, 512 MB | €0 | ⚠️ Fargate minimum for 0.25 vCPU is 512 MB |
+| **ECS Task Scheduling** | Always running | Stop 6pm-9am (10 hrs/day) | €10-15/month | EventBridge + Lambda (Phase 4.5) |
+| **VPC Endpoints** | Not deployed | Deployed ✓ | Critical security (no cost) | ✅ IMPLEMENTED |
+| **RDS Hardening** | No SSL, minimal logging | RDS SSL enforced, DDL logging | Security benefit | ✅ IMPLEMENTED |
+| **CloudWatch Log Retention** | 7 days → 30 days | 30 days retained | Security benefit | ✅ IMPLEMENTED |
+| **REALISTIC SAVINGS** (PATH A) | **€141.10** | **€130-135** | **€10-15/month** | Task scheduling only |
 
 #### **MEDIUM PRIORITY** - Save €5-15/month
 
@@ -120,13 +122,15 @@ Current infrastructure costs approximately **€140-150/month** for a developmen
 
 | Service | Current | Optimized | Notes |
 |---------|---------|-----------|-------|
-| ECS (0.25 vCPU, 256MB × 1-4 tasks, off-hours stops) | €24 | €10 | -€14 |
+| ECS (0.25 vCPU, 512 MB × 1-6 tasks) | €24 | €24 | ⚠️ Fargate min 512MB for 0.25vCPU; no memory reduction possible |
 | ALB | €16.20 | €16.20 | No change |
 | NAT Gateway | €32.40 | €32.40 | Keep (needed for outbound) |
 | RDS + Storage | €36.20 | €36.20 | No change |
-| CloudWatch + Logging | €12.90 | €12.90 | No change |
-| VPC Endpoints | €14.40 | €14.40 | Keep (essential) |
-| **TOTAL** | **€141.10** | **€72.10** | **Save €69/month** |
+| CloudWatch + Logging | €12.90 | €12.90 | 30-day retention (security) |
+| VPC Endpoints | €0 | €14.40 | ✅ Now enabled (mandatory for security) |
+| **TOTAL (Before Task Scheduling)** | **€141.10** | **€141.10** | **No change yet** |
+| ECS Task Scheduling (deferred) | - | -€10-15 | Stop 6pm-9am saves €10-15/month |
+| **REALISTIC TOTAL (PATH A)** | | **€126-131** | **Save €10-15/month** |
 
 ---
 
@@ -243,7 +247,8 @@ Monitor:
 | Scenario | Monthly | Annual | 12-Month Savings |
 |----------|---------|--------|-----------------|
 | Baseline (No optimization) | €141 | €1,692 | - |
-| PATH A (Development-Optimized) | €72 | €864 | **€828/year** ⭐ |
+| PATH A Current (VPC endpoints deployed + security hardening) | €141 | €1,692 | €0 (security prioritized) |
+| PATH A + Task Scheduling (Phase 4.5) | €130 | €1,560 | **€132/year** |
 | PATH B (Production-Ready) | €117 | €1,404 | **€288/year** |
 
 ### Cost per Metric
@@ -305,10 +310,11 @@ Monitor:
 1. **Region:** All costs in EUR for eu-north-1 (Northern Europe)
 2. **Baseline Usage:** Minimal production traffic (dev environment)
 3. **Data Transfer:** Assumes ~50 GB/month outbound (typical for dev)
-4. **Retention:** Log retention increased to 30 days for compliance
-5. **Auto-Scaling:** Assumes 2-6 tasks average across day
-6. **No RI:** Baseline costs are on-demand (no Reserved Instances)
-7. **Compliance:** All costs include security hardening measures
+4. **Retention:** CloudWatch log retention set to 30 days; RDS backup 1 day (AWS Free Tier maximum)
+5. **Free Tier Constraint:** RDS backup retention limited to 1 day while on free tier. Upgrade to 7 days after account upgrade.
+6. **Auto-Scaling:** Assumes 2-6 tasks average across day
+7. **No RI:** Baseline costs are on-demand (no Reserved Instances)
+8. **Compliance:** All costs include security hardening measures
 
 ---
 

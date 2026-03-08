@@ -1,6 +1,4 @@
-[
-  {
-    "SubscriptionType": "EMAIL",
-    "Address": "your-email@example.com"
-  }
-]
+{
+  "SubscriptionType": "EMAIL",
+  "Address": "naveenmeganathan@gmail.com"
+}

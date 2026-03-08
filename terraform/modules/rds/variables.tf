@@ -50,9 +50,9 @@ variable "engine_version" {
 }
 
 variable "backup_retention_period" {
-  description = "Backup retention period in days"
+  description = "Backup retention period in days (AWS Free Tier: max 1 day; upgrade to 7+ for production)"
   type        = number
-  default     = 7
+  default     = 1  # Free tier maximum; change to 7+ after free tier upgrade
 }
 
 variable "multi_az" {
