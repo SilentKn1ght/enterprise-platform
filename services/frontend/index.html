@@ -213,15 +213,34 @@
   </div>
   
   <script>
-    const API_URL = '';
+    // Dynamic API URL configuration
+    const API_URL = window.location.hostname === 'localhost' 
+      ? 'http://localhost:3000'
+      : `${window.location.protocol}//${window.location.hostname}:3000`;
+    
+    let pollAttempts = 0;
+    let pollDelay = 2000; // Start at 2 seconds
+    
+    // Helper function to safely escape HTML
+    function escapeHtml(text) {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, m => map[m]);
+    }
     
     async function checkHealth() {
       try {
-        const response = await fetch(`${API_URL}/health`);
+        const response = await fetch(`${API_URL}/health`, { mode: 'cors' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         alert(`✅ API is healthy!\n\nUptime: ${data.uptime.toFixed(2)} seconds`);
       } catch (error) {
-        alert('❌ API is not responding');
+        alert(`❌ API is not responding\nError: ${error.message}`);
       }
     }
     
@@ -231,41 +250,66 @@
     
     async function viewData() {
       try {
-        const response = await fetch(`${API_URL}/api/data`);
+        const response = await fetch(`${API_URL}/api/data`, { mode: 'cors' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         alert('📊 Data:\n\n' + JSON.stringify(data, null, 2));
       } catch (error) {
-        alert('❌ Could not fetch data');
+        alert(`❌ Could not fetch data\nError: ${error.message}`);
       }
     }
     
     async function updateStatus() {
       try {
-        const response = await fetch(`${API_URL}/api/status`);
+        const response = await fetch(`${API_URL}/api/status`, { mode: 'cors', timeout: 5000 });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
+        
+        // Reset error tracking on success
+        pollAttempts = 0;
+        pollDelay = 2000;
         
         // Update cards
         document.getElementById('api-status').textContent = '✓';
         document.getElementById('uptime').textContent = data.uptime.toFixed(1) + 's';
         document.getElementById('memory').textContent = (data.memory.heapUsed / 1024 / 1024).toFixed(1) + ' MB';
         
-        // Update info list
+        // Safely escape and update info list
         const infoHtml = `
-          <li><span>Hostname</span><span>${data.hostname}</span></li>
-          <li><span>Platform</span><span>${data.platform}</span></li>
-          <li><span>Node Version</span><span>${process.version || 'N/A'}</span></li>
+          <li><span>Hostname</span><span>${escapeHtml(data.hostname || 'N/A')}</span></li>
+          <li><span>Platform</span><span>${escapeHtml(data.platform || 'N/A')}</span></li>
+          <li><span>Node Version</span><span>${escapeHtml(data.nodeVersion || 'N/A')}</span></li>
           <li><span>Last Update</span><span>${new Date().toLocaleTimeString()}</span></li>
         `;
         document.getElementById('system-info').innerHTML = infoHtml;
       } catch (error) {
+        pollAttempts++;
+        
+        // Exponential backoff: 2s, 4s, 8s, 16s (max)
+        pollDelay = Math.min(2000 * Math.pow(2, pollAttempts - 1), 16000);
+        
         document.getElementById('api-status').textContent = '✗';
-        document.getElementById('system-info').innerHTML = '<li><span>API Error</span><span>Not connected</span></li>';
+        document.getElementById('system-info').innerHTML = `<li><span>Status</span><span>Reconnecting (attempt ${pollAttempts})...</span></li>`;
       }
     }
     
-    // Update status every 2 seconds
-    updateStatus();
-    setInterval(updateStatus, 2000);
+    // Start polling with dynamic intervals
+    let pollInterval;
+    function startPolling() {
+      updateStatus();
+      pollInterval = setInterval(updateStatus, pollDelay);
+    }
+    
+    startPolling();
+    
+    // Optional: Add page visibility detection to pause polling when tab is hidden
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        clearInterval(pollInterval);
+      } else {
+        startPolling();
+      }
+    });
   </script>
 </body>
 </html>

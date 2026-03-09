@@ -5,6 +5,22 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+// CORS middleware - allow frontend to access API
+app.use((req, res, next) => {
+  const origin = req.headers.origin || '*';
+  res.header('Access-Control-Allow-Origin', origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
 // Security middleware
 app.use(helmet());
 
@@ -98,7 +114,8 @@ app.get('/api/status', (req, res) => {
     uptime: process.uptime(),
     memory: process.memoryUsage(),
     hostname: require('os').hostname(),
-    platform: process.platform
+    platform: process.platform,
+    nodeVersion: process.version
   });
 });
 

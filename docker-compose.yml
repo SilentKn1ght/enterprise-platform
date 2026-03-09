@@ -12,6 +12,20 @@ services:
     networks:
       - monitoring
 
+  frontend:
+    image: nginx:alpine
+    container_name: enterprise-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./services/frontend:/usr/share/nginx/html:ro
+      - ./monitoring/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+    networks:
+      - monitoring
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v2.48.0
     container_name: prometheus
