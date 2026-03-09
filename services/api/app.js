@@ -4,16 +4,21 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
 const { authenticateToken } = require('./utils/auth');
+const os = require('os');
 
 const app = express();
 
-// CORS middleware - allow frontend to access API
+// CORS middleware - restrict to specified origins
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3001,http://localhost:3000').split(',');
 app.use((req, res, next) => {
-  const origin = req.headers.origin || '*';
-  res.header('Access-Control-Allow-Origin', origin);
+  const origin = req.headers.origin;
+  // Only set CORS headers if origin is in allowed list
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
@@ -131,7 +136,7 @@ app.get('/api/status', authenticateToken, (req, res) => {
     status: 'running',
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    hostname: require('os').hostname(),
+    hostname: os.hostname(),
     platform: process.platform,
     nodeVersion: process.version
   });

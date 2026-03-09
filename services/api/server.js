@@ -13,26 +13,21 @@ try {
 const PORT = process.env.PORT || 3000;
 
 const server = app.listen(PORT, () => {
-  logger.info('Server started', { port: PORT });
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(`📊 Metrics available at http://localhost:${PORT}/metrics`);
+  logger.info('Server started', { port: PORT, metricsUrl: `http://localhost:${PORT}/metrics` });
 });
 
 // Graceful shutdown
 const gracefulShutdown = (signal) => {
   logger.info('Shutdown signal received', { signal });
-  console.log('\n🛑 Graceful shutdown initiated...');
   
   server.close(() => {
     logger.info('Server closed successfully');
-    console.log('✅ Server closed');
     process.exit(0);
   });
   
   // Force exit after 10 seconds
   setTimeout(() => {
     logger.error('Force shutdown after timeout', { timeoutSeconds: 10 });
-    console.error('❌ Force shutdown after timeout');
     process.exit(1);
   }, 10000);
 };
