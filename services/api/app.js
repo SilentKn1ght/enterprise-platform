@@ -2,6 +2,8 @@ const express = require('express');
 const promClient = require('prom-client');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const logger = require('./utils/logger');
+const { authenticateToken } = require('./utils/auth');
 
 const app = express();
 
@@ -71,17 +73,26 @@ const activeConnections = new promClient.Gauge({
 });
 register.registerMetric(activeConnections);
 
-// Middleware
+// Middleware - Track request metrics and handle connection lifecycle
 app.use((req, res, next) => {
   const start = Date.now();
   activeConnections.inc();
 
-  res.on('finish', () => {
+  // Track completion
+  const recordMetrics = () => {
     const duration = (Date.now() - start) / 1000;
     httpRequestDuration.labels(req.method, req.route?.path || req.path, res.statusCode).observe(duration);
     httpRequestsTotal.labels(req.method, req.route?.path || req.path, res.statusCode).inc();
     activeConnections.dec();
-  });
+    
+    // Remove listeners to prevent memory leaks
+    res.removeListener('finish', recordMetrics);
+    res.removeListener('close', recordMetrics);
+  };
+
+  // Handle both normal completion and socket close
+  res.on('finish', recordMetrics);
+  res.on('close', recordMetrics);
 
   next();
 });
@@ -95,9 +106,15 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.get('/metrics', async (req, res) => {
-  res.set('Content-Type', register.contentType);
-  res.end(await register.metrics());
+// Protect metrics endpoint with API key if configured
+app.get('/metrics', authenticateToken, async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (error) {
+    logger.error('Metrics generation failed', { error: error.message });
+    res.status(500).json({ error: 'Failed to generate metrics' });
+  }
 });
 
 app.get('/api', (req, res) => {
@@ -108,7 +125,8 @@ app.get('/api', (req, res) => {
   });
 });
 
-app.get('/api/status', (req, res) => {
+// Protect status endpoint with API key if configured
+app.get('/api/status', authenticateToken, (req, res) => {
   res.json({
     status: 'running',
     uptime: process.uptime(),
@@ -140,11 +158,16 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, _next) => {
-  console.error('Error:', err.message);
-  
-  // Don't leak error details in production
   const status = err.status || 500;
   const message = process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message;
+  
+  logger.error('Unhandled error', {
+    error: err.message,
+    stack: err.stack,
+    status,
+    path: req.path,
+    method: req.method
+  });
   
   res.status(status).json({
     error: message,
