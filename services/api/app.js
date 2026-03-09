@@ -1,7 +1,33 @@
 const express = require('express');
 const promClient = require('prom-client');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
+
+// Security middleware
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', limiter);
+
+// Body parsing middleware
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ limit: '10kb', extended: true }));
+
+// Health check should not be rate limited
+const healthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
+});
+app.use('/health', healthLimiter);
 
 // Prometheus setup
 const register = new promClient.Registry();
@@ -83,6 +109,30 @@ app.get('/api/data', (req, res) => {
       { id: 2, name: 'Item 2', created: new Date().toISOString() },
       { id: 3, name: 'Item 3', created: new Date().toISOString() }
     ]
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    path: req.path,
+    method: req.method
+  });
+});
+
+// Global error handler
+app.use((err, req, res, _next) => {
+  console.error('Error:', err.message);
+  
+  // Don't leak error details in production
+  const status = err.status || 500;
+  const message = process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message;
+  
+  res.status(status).json({
+    error: message,
+    status,
+    timestamp: new Date().toISOString()
   });
 });
 
