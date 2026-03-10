@@ -26,16 +26,6 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
-# CloudWatch Log Group
-resource "aws_cloudwatch_log_group" "app" {
-  name              = "/ecs/${var.project_name}-${var.environment}"
-  retention_in_days = 30
-
-  tags = {
-    Name = "${var.project_name}-${var.environment}-logs"
-  }
-}
-
 # ECS Task Execution Role
 resource "aws_iam_role" "ecs_task_execution" {
   name = "${var.project_name}-${var.environment}-ecs-execution-role"
@@ -236,50 +226,5 @@ resource "aws_appautoscaling_policy" "scale_up" {
     target_value       = var.cpu_scale_up_threshold
     scale_in_cooldown  = 300
     scale_out_cooldown = 60
-  }
-}
-
-# CloudWatch Alarms for ECS
-resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
-  alarm_name          = "${var.project_name}-ecs-cpu-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "CPUUtilization"
-  namespace           = "AWS/ECS"
-  period              = "300"
-  statistic           = "Average"
-  threshold           = "80"
-  alarm_description   = "ECS service CPU utilization is too high"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    ClusterName = aws_ecs_cluster.main.name
-    ServiceName = aws_ecs_service.main.name
-  }
-
-  tags = {
-    Name = "${var.project_name}-ecs-cpu-alarm"
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
-  alarm_name          = "${var.project_name}-ecs-memory-high"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "MemoryUtilization"
-  namespace           = "AWS/ECS"
-  period              = "300"
-  statistic           = "Average"
-  threshold           = "80"
-  alarm_description   = "ECS service memory utilization is too high"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    ClusterName = aws_ecs_cluster.main.name
-    ServiceName = aws_ecs_service.main.name
-  }
-
-  tags = {
-    Name = "${var.project_name}-ecs-memory-alarm"
   }
 }
