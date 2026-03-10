@@ -1,13 +1,13 @@
 FROM node:18-alpine AS dependencies
 WORKDIR /app
-COPY package*.json ./
+COPY services/api/package*.json ./
 RUN npm ci --only=production
 
 FROM node:18-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
+COPY services/api/package*.json ./
 RUN npm ci
-COPY . .
+COPY services/api . 
 RUN npm test
 
 FROM node:18-alpine AS production
@@ -19,7 +19,9 @@ WORKDIR /app
 
 COPY --from=dependencies --chown=nodejs:nodejs /app/node_modules ./node_modules
 
-COPY --chown=nodejs:nodejs . .
+COPY --chown=nodejs:nodejs services/api . 
+
+COPY --chown=nodejs:nodejs services/frontend ../frontend
 
 USER nodejs
 

@@ -213,10 +213,8 @@
   </div>
   
   <script>
-    // Dynamic API URL configuration
-    const API_URL = window.location.hostname === 'localhost' 
-      ? 'http://localhost:3000'
-      : `${window.location.protocol}//${window.location.hostname}:3000`;
+    // Dynamic API URL configuration - use same origin for both frontend and API
+    const API_URL = window.location.origin;
     
     let pollAttempts = 0;
     let pollDelay = 2000; // Start at 2 seconds

@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const promClient = require('prom-client');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -52,6 +53,10 @@ const healthLimiter = rateLimit({
 });
 app.use('/health', healthLimiter);
 
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '../frontend');
+app.use(express.static(frontendPath, { maxAge: '1h' }));
+
 // Prometheus setup
 const register = new promClient.Registry();
 promClient.collectDefaultMetrics({ register, prefix: 'api_' });
@@ -103,6 +108,10 @@ app.use((req, res, next) => {
 });
 
 // Routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
@@ -152,8 +161,12 @@ app.get('/api/data', (req, res) => {
   });
 });
 
-// 404 handler
-app.use((req, res) => {
+// Fallback to index.html for client-side routing
+app.get('*', (req, res) => {
+  // Only fallback to index.html for non-API routes
+  if (!req.path.startsWith('/api') && !req.path.startsWith('/health') && !req.path.startsWith('/metrics')) {
+    return res.sendFile(path.join(frontendPath, 'index.html'));
+  }
   res.status(404).json({
     error: 'Not Found',
     path: req.path,
