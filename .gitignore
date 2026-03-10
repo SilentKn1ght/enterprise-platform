@@ -63,3 +63,4 @@ docker-compose.override.yml
 .aws/
 aws-credentials
 secretsmanager list-secrets --region eu-north-1 --query SecretList\[?contains(Name, `enterprise-platform`)].Name --output text
+ecs describe-task-definition --task-definition enterprise-platform-dev:1 --region eu-north-1 --query taskDefinition.\[family,revision,status,containerDefinitions\[0].image] --output table

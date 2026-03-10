@@ -84,20 +84,12 @@ Internet (Users)
   - RDS database setup and backup strategy
   - Security architecture and defense layers
 
-### For Deploying
-- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Step-by-step deployment guide
-  - Initial AWS setup and prerequisites
-  - Building and pushing Docker images to ECR
-  - Terraform initialization and applying infrastructure
-  - Updating applications and infrastructure
-  - Rollback procedures
+### For Deploying & Monitoring (Currently Deployed ✅)
+See the [ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design details. Setup guides are available locally in `/docs` but not tracked in git (one-time deployment documentation).
 
-### For Operating
-- **[OPERATIONS.md](docs/OPERATIONS.md)** - Day-to-day operational procedures and runbooks
-  - Daily health checks and monitoring
-  - Responding to alerts (CPU, memory, database, etc.)
-  - Scaling and cost control
-  - Maintenance tasks and disaster recovery
+- **CLOUDWATCH-GRAFANA-DEPLOYMENT.md** - Local reference guide for AWS monitoring setup
+- **AWS-ENV-AND-MONITORING-SETUP.md** - Local reference for environment configuration  
+- **GRAFANA-CLOUDWATCH-SETUP.md** - Local reference for Grafana integration
 
 ### For Troubleshooting
 - **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Quick solutions for common problems
@@ -107,11 +99,9 @@ Internet (Users)
   - Networking issues
   - Performance problems
 
-### For Testing & Monitoring
+### For Testing & Security
 - **[Load-Testing-Guide.md](docs/Load-Testing-Guide.md)** - K6-based performance testing procedures
-- **[Monitering.md](docs/Monitering.md)** - Prometheus/Grafana monitoring setup (local Docker)
 - **[security-audit-checklist.md](docs/security-audit-checklist.md)** - Security compliance verification
-- **[cost-analysis.md](docs/cost-analysis.md)** - Cost breakdown and optimization recommendations
 
 ---
 
@@ -131,30 +121,22 @@ Internet (Users)
 git clone https://github.com/SilentKn1ght/enterprise-platform.git
 cd enterprise-platform
 
-# 2. Build and push Docker image
-cd services/api
-docker build -t enterprise-platform:latest .
-# ... push to ECR (see DEPLOYMENT.md for detailed steps)
-
-# 3. Configure Terraform
-cd ../../terraform
+# 2. Configure Terraform
+cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your ECR image URI and database password
+# Edit terraform.tfvars with your configuration
 
-# 4. Deploy infrastructure
+# 3. Deploy infrastructure
 terraform init
 terraform plan
 terraform apply
 
-# 5. Verify deployment
+# 4. Verify deployment
 ALB=$(terraform output -raw alb_dns_name)
 curl http://$ALB/health
-
-# 6. Start making requests
-curl http://$ALB/api
 ```
 
-**Full details:** See [DEPLOYMENT.md](docs/DEPLOYMENT.md)
+**Full details:** See [CLOUDWATCH-GRAFANA-DEPLOYMENT.md](docs/CLOUDWATCH-GRAFANA-DEPLOYMENT.md)
 
 ---
 
@@ -216,13 +198,11 @@ curl http://$ALB/api
 - Other services: €8
 - **Total: ~€120/month**
 
-🎯 **Tips to reduce costs:**
+🎯 **Cost Optimization:**
+- Use `./scripts/resource-control.sh` to stop/start services
 - Stop dev environment 6pm-9am (saves €10-15/month)
-- Use RDS free tier where possible
-- Single NAT Gateway for dev (already configured)
-- Monitor and clean up unused resources
-
-Full breakdown: See [cost-analysis.md](docs/cost-analysis.md)
+- Scale down to min tasks during off-hours
+- Delete NAT Gateway for aggressive savings (recreate when needed)
 
 ---
 
@@ -231,13 +211,15 @@ Full breakdown: See [cost-analysis.md](docs/cost-analysis.md)
 ```
 enterprise-platform/
 ├── docs/
-│   ├── ARCHITECTURE.md              # System design
-│   ├── DEPLOYMENT.md                # Deployment guide
-│   ├── OPERATIONS.md                # Operational procedures
-│   ├── TROUBLESHOOTING.md           # Problem solving
-│   ├── Load-Testing-Guide.md        # Performance testing
-│   ├── security-audit-checklist.md  # Security verification
-│   └── cost-analysis.md             # Cost breakdown
+│   ├── ARCHITECTURE.md                      # System design & overview
+│   ├── TROUBLESHOOTING.md                   # Problem solving guide
+│   ├── Load-Testing-Guide.md                # Performance testing with K6
+│   └── security-audit-checklist.md          # Security verification checklist
+│   
+│   ⚠️ One-time setup guides (not in git, local reference only):
+│   ├── CLOUDWATCH-GRAFANA-DEPLOYMENT.md     # Monitoring setup reference
+│   ├── AWS-ENV-AND-MONITORING-SETUP.md      # Environment setup reference
+│   └── GRAFANA-CLOUDWATCH-SETUP.md          # Grafana integration reference
 ├── terraform/                       # Infrastructure as Code
 │   ├── main.tf
 │   ├── variables.tf
