@@ -39,8 +39,14 @@ describe('Integration Tests', () => {
     expect(metrics2.text.length).toBeGreaterThan(initialText.length);
   });
 
-  test('404 for unknown routes', async () => {
-    const response = await request(app).get('/unknown');
+  test('404 for unknown API routes', async () => {
+    const response = await request(app).get('/api/unknown');
     expect(response.statusCode).toBe(404);
+  });
+
+  test('serves index.html for unknown non-API routes (SPA)', async () => {
+    const response = await request(app).get('/unknown');
+    expect(response.statusCode).toBe(200);
+    expect(response.type).toBe('text/html');
   });
 });
