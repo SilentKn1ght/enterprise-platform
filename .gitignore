@@ -51,6 +51,9 @@ tfplan*
 INFRASTRUCTURE-ANALYSIS.md
 DEV-WAKE-FIX-SUMMARY.md
 DIAGNOSTICS-SECRETS-MANAGER-ISSUE.md
+docs/CLOUDWATCH-GRAFANA-DEPLOYMENT.md
+docs/AWS-ENV-AND-MONITORING-SETUP.md
+docs/GRAFANA-CLOUDWATCH-SETUP.md
 
 # Docker
 .dockerignore
@@ -59,3 +62,4 @@ docker-compose.override.yml
 # AWS
 .aws/
 aws-credentials
+secretsmanager list-secrets --region eu-north-1 --query SecretList\[?contains(Name, `enterprise-platform`)].Name --output text
