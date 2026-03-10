@@ -88,3 +88,30 @@ variable "max_tasks" {
   type        = number
   default     = 10
 }
+
+# CloudWatch & Monitoring
+variable "alert_email" {
+  description = "Email address for receiving CloudWatch alarms and alerts"
+  type        = string
+  default     = ""
+}
+
+variable "log_retention_days" {
+  description = "Number of days to retain CloudWatch logs"
+  type        = number
+  default     = 30
+}
+
+# Grafana Configuration
+variable "grafana_password" {
+  description = "Grafana admin password (auto-generated if empty)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "grafana_deploy" {
+  description = "Whether to deploy Grafana to ECS for dashboards"
+  type        = bool
+  default     = true
+}

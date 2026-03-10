@@ -22,6 +22,7 @@ ENVIRONMENT="dev"
 AWS_REGION="eu-north-1"
 CLUSTER_NAME="${PROJECT_NAME}-${ENVIRONMENT}-cluster"
 SERVICE_NAME="${PROJECT_NAME}-${ENVIRONMENT}-service"
+GRAFANA_SERVICE_NAME="${PROJECT_NAME}-${ENVIRONMENT}-grafana"
 DB_INSTANCE_ID="${PROJECT_NAME}-db"
 ALB_NAME="${PROJECT_NAME}-alb"
 NAT_TAG_KEY="Name"
@@ -105,6 +106,17 @@ check_ecs_service_status() {
         --output table
 }
 
+check_grafana_service_status() {
+    print_info "Checking Grafana Service status..."
+    
+    aws ecs describe-services \
+        --cluster "$CLUSTER_NAME" \
+        --services "$GRAFANA_SERVICE_NAME" \
+        --region "$AWS_REGION" \
+        --query 'services[0].[serviceName,status,desiredCount,runningCount,pendingCount]' \
+        --output table
+}
+
 check_rds_status() {
     print_info "Checking RDS Database status..."
     
@@ -138,8 +150,12 @@ check_alb_status() {
 check_all_resources_status() {
     print_header "CURRENT RESOURCE STATUS"
     
-    echo -e "${CYAN}━━━━━━━━━━━━ ECS SERVICE ━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━ ECS SERVICE (Main App) ━━━━━━━━━━━━${NC}"
     check_ecs_service_status || print_warning "ECS Service status check failed"
+    
+    echo ""
+    echo -e "${CYAN}━━━━━━━━━━━━ GRAFANA SERVICE ━━━━━━━━━━━━${NC}"
+    check_grafana_service_status || print_warning "Grafana Service status check failed"
     
     echo ""
     echo -e "${CYAN}━━━━━━━━━━━━ RDS DATABASE ━━━━━━━━━━━━${NC}"
@@ -292,6 +308,56 @@ stop_ecs_service() {
     check_ecs_service_status
 }
 
+start_grafana_service() {
+    print_header "STARTING GRAFANA SERVICE"
+    
+    check_grafana_service_status
+    
+    print_info "This will scale up the Grafana service to 1 task"
+    if ! confirm "Do you want to start the Grafana service?"; then
+        print_warning "Operation cancelled"
+        return
+    fi
+    
+    print_info "Scaling up Grafana service to 1 task..."
+    aws ecs update-service \
+        --cluster "$CLUSTER_NAME" \
+        --service "$GRAFANA_SERVICE_NAME" \
+        --desired-count 1 \
+        --region "$AWS_REGION" \
+        --query 'service.[serviceName,desiredCount]' \
+        --output table
+    
+    print_success "Grafana service start command sent. Waiting for task to start..."
+    sleep 5
+    check_grafana_service_status
+}
+
+stop_grafana_service() {
+    print_header "STOPPING GRAFANA SERVICE"
+    
+    check_grafana_service_status
+    
+    print_warning "This will scale down the Grafana service to 0 tasks"
+    if ! confirm "Do you want to stop the Grafana service?"; then
+        print_warning "Operation cancelled"
+        return
+    fi
+    
+    print_info "Scaling down Grafana service to 0 tasks..."
+    aws ecs update-service \
+        --cluster "$CLUSTER_NAME" \
+        --service "$GRAFANA_SERVICE_NAME" \
+        --desired-count 0 \
+        --region "$AWS_REGION" \
+        --query 'service.[serviceName,desiredCount]' \
+        --output table
+    
+    print_success "Grafana service stop command sent. Waiting for task to stop..."
+    sleep 5
+    check_grafana_service_status
+}
+
 #################################################################################
 # RDS Database Control Functions
 #################################################################################
@@ -350,7 +416,7 @@ stop_rds_database() {
 start_all_resources() {
     print_header "STARTING ALL RESOURCES"
     
-    print_warning "This will start both ECS service and RDS database"
+    print_warning "This will start ECS service, Grafana, and RDS database"
     if ! confirm "Do you want to start all resources?"; then
         print_warning "Operation cancelled"
         return
@@ -364,8 +430,12 @@ start_all_resources() {
     sleep 30
     
     echo ""
-    print_info "Starting ECS service..."
+    print_info "Starting main ECS service..."
     start_ecs_service
+    
+    echo ""
+    print_info "Starting Grafana service..."
+    start_grafana_service
     
     print_success "All resources started!"
     estimate_cost_savings
@@ -374,14 +444,18 @@ start_all_resources() {
 stop_all_resources() {
     print_header "STOPPING ALL RESOURCES"
     
-    print_warning "This will stop both ECS service and RDS database"
+    print_warning "This will stop ECS service, Grafana, and RDS database"
     if ! confirm "Do you want to stop all resources?"; then
         print_warning "Operation cancelled"
         return
     fi
     
-    print_info "Stopping ECS service..."
+    print_info "Stopping main ECS service..."
     stop_ecs_service
+    
+    echo ""
+    print_info "Stopping Grafana service..."
+    stop_grafana_service
     
     echo ""
     print_info "Stopping RDS database..."
@@ -573,18 +647,23 @@ show_menu() {
     print_header "ENTERPRISE PLATFORM - RESOURCE CONTROL"
     
     echo -e "${CYAN}Quick Actions:${NC}"
-    echo "  1) Start all resources (ECS + RDS)"
-    echo "  2) Stop all resources (ECS + RDS)"
+    echo "  1) Start all resources (App + Grafana + RDS)"
+    echo "  2) Stop all resources (App + Grafana + RDS)"
     echo ""
-    echo -e "${CYAN}ECS Service:${NC}"
-    echo "  3) Start ECS service only"
-    echo "  4) Stop ECS service only"
-    echo "  5) Check ECS service status"
+    echo -e "${CYAN}Application Service:${NC}"
+    echo "  3) Start main ECS service only"
+    echo "  4) Stop main ECS service only"
+    echo "  5) Check main ECS service status"
+    echo ""
+    echo -e "${CYAN}Grafana Service:${NC}"
+    echo "  6) Start Grafana service only"
+    echo "  7) Stop Grafana service only"
+    echo "  8) Check Grafana service status"
     echo ""
     echo -e "${CYAN}RDS Database:${NC}"
-    echo "  6) Start RDS database only"
-    echo "  7) Stop RDS database only"
-    echo "  8) Check RDS status"
+    echo "  16) Start RDS database only"
+    echo "  17) Stop RDS database only"
+    echo "  18) Check RDS status"
     echo ""
     echo -e "${CYAN}Advanced (Infrastructure):${NC}"
     echo "  11) Delete NAT Gateway (save \$${COST_NAT_GATEWAY}/hour)"
@@ -615,9 +694,9 @@ interactive_menu() {
             3)  start_ecs_service ;;
             4)  stop_ecs_service ;;
             5)  check_ecs_service_status ;;
-            6)  start_rds_database ;;
-            7)  stop_rds_database ;;
-            8)  check_rds_status ;;
+            6)  start_grafana_service ;;
+            7)  stop_grafana_service ;;
+            8)  check_grafana_service_status ;;
             9)  check_all_resources_status ;;
             10) estimate_cost_savings ;;
             11) delete_nat_gateway ;;
@@ -625,6 +704,9 @@ interactive_menu() {
             13) delete_alb ;;
             14) recreate_alb ;;
             15) show_cost_details ;;
+            16) start_rds_database ;;
+            17) stop_rds_database ;;
+            18) check_rds_status ;;
             0)  
                 print_info "Exiting..."
                 exit 0
@@ -665,6 +747,12 @@ main() {
                 ;;
             stop-ecs)
                 stop_ecs_service
+                ;;
+            start-grafana)
+                start_grafana_service
+                ;;
+            stop-grafana)
+                stop_grafana_service
                 ;;
             start-rds)
                 start_rds_database

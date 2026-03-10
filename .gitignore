@@ -1,27 +1,61 @@
-node_modules/
+# Environment Variables & Secrets
 .env
+.env.local
+.env.*.local
+.env.production.local
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
 .DS_Store
-*.log
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Build & Coverage
 dist/
 build/
 coverage/
+*.log
+logs/
 
+# Terraform
 **/.terraform/*
+**/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 terraform.tfvars
+backend-config.hcl
 *.auto.tfvars
 crash.log
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-.terraform.lock.hcl
-terraform(A)/main(A).tf
-terraform(A)/outputs(A).tf
-terraform(A)/terraform(A).tfvars
-terraform(A)/variables(A).tf
+tfplan*
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# Temporary Documentation
 INFRASTRUCTURE-ANALYSIS.md
 DEV-WAKE-FIX-SUMMARY.md
 DIAGNOSTICS-SECRETS-MANAGER-ISSUE.md
-ecs describe-services /
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# AWS
+.aws/
+aws-credentials

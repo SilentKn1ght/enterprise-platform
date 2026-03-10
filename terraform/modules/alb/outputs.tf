@@ -32,3 +32,8 @@ output "http_listener_arn" {
   description = "ARN of the HTTP listener"
   value       = aws_lb_listener.http.arn
 }
+
+output "alb_name" {
+  description = "Name of the load balancer"
+  value       = aws_lb.main.name
+}

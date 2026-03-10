@@ -8,12 +8,16 @@ terraform {
     }
   }
 
-  # Remote state (we'll set this up later)
-  # backend "s3" {
-  #   bucket = "enterprise-platform-terraform-state"
-  #   key    = "prod/terraform.tfstate"
-  #   region = "eu-north-1"
-  # }
+  # Remote state backend for team collaboration
+  # Configure via backend config file or CLI flags:
+  # terraform init -backend-config="bucket=enterprise-platform-tfstate" \
+  #                -backend-config="key=prod/terraform.tfstate" \
+  #                -backend-config="region=eu-north-1"
+  backend "s3" {
+    # Values provided via -backend-config flags during init
+    encrypt      = true
+    use_lockfile = true
+  }
 }
 
 provider "aws" {
@@ -78,6 +82,17 @@ module "ecs" {
 
   min_tasks = var.min_tasks
   max_tasks = var.max_tasks
+
+  # CloudWatch Monitoring & Alarms
+  alert_email        = var.alert_email
+  log_retention_days = var.log_retention_days
+  db_instance_id     = "enterprise-platform-db"
+  alb_name           = module.alb.alb_name
+  target_group_name  = module.alb.target_group_name
+
+  # Grafana Configuration
+  grafana_password = var.grafana_password
+  grafana_deploy   = var.grafana_deploy
 }
 
 # RDS Module
