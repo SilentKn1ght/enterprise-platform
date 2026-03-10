@@ -77,3 +77,40 @@ jobs:
         run: |
           echo "Image pushed: ${{ steps.build-image.outputs.image }}"
           echo "Image tag: ${{ github.sha }}"
+
+  deploy:
+    name: Deploy to ECS
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster enterprise-platform-dev-cluster \
+            --service enterprise-platform-dev-service \
+            --force-new-deployment \
+            --region eu-north-1
+
+      - name: Wait for deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster enterprise-platform-dev-cluster \
+            --services enterprise-platform-dev-service \
+            --region eu-north-1
+
+      - name: Verify deployment
+        run: |
+          aws ecs describe-services \
+            --cluster enterprise-platform-dev-cluster \
+            --services enterprise-platform-dev-service \
+            --region eu-north-1 \
+            --query 'services[0].[serviceName,status,runningCount,desiredCount]' \
+            --output table
