@@ -30,7 +30,23 @@ app.use((req, res, next) => {
 });
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+      imgSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      scriptSrc: ["'self'"],
+      scriptSrcAttr: ["'none'"],
+      styleSrc: ["'self'", "https:", "'unsafe-inline'"]
+    }
+  }
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -54,7 +70,7 @@ const healthLimiter = rateLimit({
 app.use('/health', healthLimiter);
 
 // Serve frontend static files
-const frontendPath = path.join(__dirname, '../frontend');
+const frontendPath = path.join(__dirname, 'frontend');
 app.use(express.static(frontendPath, { maxAge: '1h' }));
 
 // Prometheus setup

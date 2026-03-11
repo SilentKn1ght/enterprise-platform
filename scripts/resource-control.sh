@@ -91,6 +91,193 @@ check_aws_credentials() {
     fi
 }
 
+setup_terraform_password_env() {
+    # Check if database password is already set as environment variable
+    if [ -n "$TF_VAR_db_password" ]; then
+        print_info "Using existing TF_VAR_db_password environment variable"
+        return 0
+    fi
+    
+    print_info "Database password not set. Attempting to retrieve from AWS Secrets Manager..."
+    
+    # Try to get password from Secrets Manager with environment-specific name first
+    local secret_name="${PROJECT_NAME}-${ENVIRONMENT}-db-password"
+    
+    if local db_pass=$(aws secretsmanager get-secret-value \
+        --secret-id "$secret_name" \
+        --region "$AWS_REGION" \
+        --query 'SecretString' \
+        --output text 2>/dev/null); then
+        
+        if [ -n "$db_pass" ] && [ "$db_pass" != "null" ]; then
+            export TF_VAR_db_password="$db_pass"
+            print_success "Database password loaded from Secrets Manager ($secret_name)"
+            return 0
+        fi
+    fi
+    
+    print_warning "Could not retrieve password from Secrets Manager"
+    echo ""
+    echo -e "${YELLOW}To avoid password prompts for Terraform operations:${NC}"
+    echo ""
+    echo "  Option 1: Set environment variable before running this script"
+    echo "    $ TF_VAR_db_password='your-password' ./scripts/resource-control.sh"
+    echo ""
+    echo "  Option 2: Store password in AWS Secrets Manager"
+    echo "    $ aws secretsmanager create-secret \\"
+    echo "        --name ${PROJECT_NAME}-${ENVIRONMENT}-db-password \\"
+    echo "        --secret-string 'your-password' \\"
+    echo "        --region $AWS_REGION"
+    echo ""
+    echo "  Option 3: Add to terraform.tfvars (NOT recommended - security risk)"
+    echo "    db_password = \"your-password\""
+    echo ""
+    
+    # For now, we'll let Terraform prompt for it, but it won't be saved
+    return 1
+}
+
+#################################################################################
+# Terraform State Lock Handling Functions
+#################################################################################
+
+get_tfstate_bucket() {
+    # Extract S3 bucket name from terraform backend configuration
+    # Assumes backend is configured with bucket pattern: enterprise-platform-tfstate-*
+    aws s3 ls --region "$AWS_REGION" 2>/dev/null | grep -oP 'enterprise-platform-tfstate-\d+' | head -1
+}
+
+get_terraform_lock_id() {
+    local bucket="$1"
+    local lock_path="$2"
+    
+    # Try to get the lock ID from the .terraform.lock.hcl file
+    if [ -f ".terraform.lock.hcl" ]; then
+        grep -oP '(?<="id" = ")[^"]*' .terraform.lock.hcl | head -1
+    fi
+}
+
+handle_terraform_lock_error() {
+    print_warning "Terraform state lock error detected"
+    echo ""
+    echo -e "${CYAN}State Lock Information:${NC}"
+    echo "  Lock ID: $1"
+    echo "  Path: $2"
+    echo "  Who: $3"
+    echo "  Created: $4"
+    echo ""
+    
+    print_warning "Options to resolve this issue:"
+    echo ""
+    echo "  1. Wait for lock to expire (may take several minutes)"
+    echo "  2. Force unlock (if you're sure no other process is running Terraform)"
+    echo "  3. Use -lock=false flag (not recommended for apply operations)"
+    echo ""
+}
+
+attempt_terraform_plan_with_retry() {
+    local target="$1"
+    local plan_file="$2"
+    local max_retries=3
+    local retry_count=0
+    local use_lock_flag="-lock=true"
+    
+    # Try to setup password environment variable (won't fail if not found)
+    setup_terraform_password_env || true
+    
+    print_info "Attempting terraform plan (with lock error handling)..."
+    
+    while [ $retry_count -lt $max_retries ]; do
+        # Try terraform plan with lock timeout
+        if terraform plan \
+            -target="$target" \
+            -lock-timeout=30s \
+            "$use_lock_flag" \
+            -out="$plan_file" 2>&1; then
+            print_success "Terraform plan succeeded"
+            return 0
+        else
+            local exit_code=$?
+            local output=$(terraform plan -target="$target" "$use_lock_flag" -out="$plan_file" 2>&1)
+            
+            # Check if error is about state lock
+            if echo "$output" | grep -q "Error acquiring the state lock"; then
+                retry_count=$((retry_count + 1))
+                
+                if [ $retry_count -lt $max_retries ]; then
+                    # Check if it's a 412 Precondition Failed (S3 backend issue)
+                    if echo "$output" | grep -q "StatusCode: 412.*PreconditionFailed"; then
+                        print_warning "S3 backend lock conflict detected (412 error)"
+                        print_warning "Switching to -lock=false workaround..."
+                        use_lock_flag="-lock=false"
+                        # Don't count this as a retry for lock timeout
+                        retry_count=$((retry_count - 1))
+                    else
+                        print_warning "State lock detected. Waiting before retry ($retry_count/$max_retries)..."
+                        sleep $((15 + retry_count * 5))  # Progressive backoff: 15s, 20s, 25s
+                    fi
+                else
+                    if echo "$output" | grep -q "StatusCode: 412"; then
+                        print_error "Terraform plan failed due to S3 backend lock conflict (412)"
+                        echo ""
+                        echo -e "${YELLOW}The state backend has a lock conflict:${NC}"
+                        echo "  • This is a deeper S3 backend issue, not a simple stale lock"
+                        echo "  • Possible causes:"
+                        echo "    - S3 bucket policy or permission issue"
+                        echo "    - KMS encryption key access denied"
+                        echo "    - State file version/ETag mismatch"
+                        echo ""
+                        echo -e "${YELLOW}To proceed with workaround:${NC}"
+                        echo "  cd terraform"
+                        echo "  terraform plan -lock=false -out=$plan_file -target=$target"
+                        echo "  terraform apply -lock=false $plan_file"
+                        echo ""
+                    else
+                        print_error "Terraform plan failed after $max_retries retries due to state lock"
+                        echo ""
+                        echo -e "${YELLOW}To force unlock the state (use with caution):${NC}"
+                        echo "  cd terraform"
+                        echo "  terraform force-unlock <LOCK_ID>"
+                        echo "  cd .."
+                        echo ""
+                        echo -e "${YELLOW}Or use the unlock script:${NC}"
+                        echo "  ./scripts/unlock-terraform-state.sh"
+                        echo ""
+                    fi
+                    return 1
+                fi
+            else
+                print_error "Terraform plan failed (non-lock error)"
+                return 1
+            fi
+        fi
+    done
+    
+    return 1
+}
+
+attempt_terraform_apply_with_lock_handling() {
+    local plan_file="$1"
+    
+    print_info "Applying Terraform plan with lock error handling..."
+    
+    if terraform apply \
+        -lock-timeout=30s \
+        "$plan_file" 2>&1; then
+        print_success "Terraform apply succeeded"
+        return 0
+    else
+        print_error "Terraform apply failed"
+        if terraform apply -lock-timeout=30s "$plan_file" 2>&1 | grep -q "Error acquiring the state lock"; then
+            print_warning "State lock preventing apply. Consider:"
+            echo "  1. Wait a few minutes and try again"
+            echo "  2. Check if another terraform process is running"
+            echo "  3. Use 'terraform force-unlock <LOCK_ID>' if safe"
+        fi
+        return 1
+    fi
+}
+
 #################################################################################
 # Status Check Functions
 #################################################################################
@@ -524,28 +711,61 @@ recreate_nat_gateway() {
         return
     fi
     
+    # Setup password environment variable early (before changing directories)
+    setup_terraform_password_env || true
+    
     print_info "Running Terraform to recreate NAT Gateway..."
-    cd terraform
     
-    print_info "Planning changes..."
-    terraform plan -target=module.networking.aws_nat_gateway.main -out=tfplan_nat
+    # Save current directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    cd "$SCRIPT_DIR/../terraform"
     
+    # Initialize terraform if needed
+    print_info "Initializing Terraform (if needed)..."
+    if ! terraform init -upgrade 2>&1 | tail -5; then
+        print_error "Terraform init failed"
+        cd - > /dev/null
+        return 1
+    fi
+    
+    echo ""
+    print_info "Planning NAT Gateway changes..."
+    
+    # Attempt plan with lock error handling
+    if ! attempt_terraform_plan_with_retry "module.networking.aws_nat_gateway.main" "tfplan_nat"; then
+        print_error "Failed to create Terraform plan"
+        cd - > /dev/null
+        return 1
+    fi
+    
+    echo ""
     print_warning "Review the plan above. This will:"
     echo "  1. Create new Elastic IP"
     echo "  2. Create NAT Gateway"
     echo "  3. Route private traffic through NAT"
+    echo ""
     
     if ! confirm "Apply Terraform changes?"; then
         print_warning "Operation cancelled. Run 'rm tfplan_nat' to clean up."
-        cd ..
+        cd - > /dev/null
         return
     fi
     
-    print_info "Applying Terraform..."
-    terraform apply tfplan_nat
+    echo ""
+    print_info "Applying Terraform changes..."
+    
+    if ! attempt_terraform_apply_with_lock_handling "tfplan_nat"; then
+        print_error "Terraform apply failed"
+        cd - > /dev/null
+        return 1
+    fi
     
     print_success "NAT Gateway recreated!"
-    cd ..
+    
+    # Cleanup plan file
+    rm -f tfplan_nat
+    
+    cd - > /dev/null
     sleep 5
     check_nat_gateway_status
 }
@@ -612,29 +832,62 @@ recreate_alb() {
         return
     fi
     
+    # Setup password environment variable early (before changing directories)
+    setup_terraform_password_env || true
+    
     print_info "Running Terraform to recreate ALB..."
-    cd terraform
     
-    print_info "Planning changes..."
-    terraform plan -target=module.alb.aws_lb.main -out=tfplan_alb
+    # Save current directory
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    cd "$SCRIPT_DIR/../terraform"
     
+    # Initialize terraform if needed
+    print_info "Initializing Terraform (if needed)..."
+    if ! terraform init -upgrade 2>&1 | tail -5; then
+        print_error "Terraform init failed"
+        cd - > /dev/null
+        return 1
+    fi
+    
+    echo ""
+    print_info "Planning ALB changes..."
+    
+    # Attempt plan with lock error handling
+    if ! attempt_terraform_plan_with_retry "module.alb.aws_lb.main" "tfplan_alb"; then
+        print_error "Failed to create Terraform plan"
+        cd - > /dev/null
+        return 1
+    fi
+    
+    echo ""
     print_warning "Review the plan above. This will create:"
     echo "  1. Application Load Balancer"
     echo "  2. Target Group for ECS tasks"
     echo "  3. HTTP Listener (port 80)"
     echo "  4. CloudWatch Alarms"
+    echo ""
     
     if ! confirm "Apply Terraform changes?"; then
         print_warning "Operation cancelled. Run 'rm tfplan_alb' to clean up."
-        cd ..
+        cd - > /dev/null
         return
     fi
     
-    print_info "Applying Terraform..."
-    terraform apply tfplan_alb
+    echo ""
+    print_info "Applying Terraform changes..."
+    
+    if ! attempt_terraform_apply_with_lock_handling "tfplan_alb"; then
+        print_error "Terraform apply failed"
+        cd - > /dev/null
+        return 1
+    fi
     
     print_success "ALB recreated!"
-    cd ..
+    
+    # Cleanup plan file
+    rm -f tfplan_alb
+    
+    cd - > /dev/null
     sleep 5
     check_alb_status
 }

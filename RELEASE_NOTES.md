@@ -1,127 +1,46 @@
-# v1.0.0 Release Summary
+# v1.2.0 Release Summary
 
-**Release Date:** March 9, 2026  
-**Status:** ✅ Production Ready  
+**Release Date:** March 11, 2026
+**Status:** ✅ Production Ready
 **Deployment:** AWS ECS Fargate (eu-north-1)
 
 ---
 
-## What is v1.0.0?
+## What's New in v1.2.0?
 
-Enterprise Platform v1.0.0 is a **production-grade DevOps project** showcasing modern infrastructure practices. It's a complete, working system ready for real-world use.
+This release focuses on **frontend reliability**, **infrastructure hardening**, and **operational tooling**. The frontend dashboard is now fully functional in AWS, and several infrastructure gaps that blocked ECS task startup have been resolved.
 
-### The System Includes
+### Highlights
 
-✅ **Working Application**
-- Node.js REST API with health checks
-- PostgreSQL database with encryption
-- Automated CI/CD pipeline
-- Container orchestration on AWS ECS Fargate
-
-✅ **Professional Infrastructure**
-- Complete Terraform IaC
-- Auto-scaling based on metrics
-- Load balancing with health checks
-- VPC isolation and security hardening
-
-✅ **Production-Grade Monitoring**
-- CloudWatch metrics and logs
-- Automated alerting on thresholds
-- Daily health check procedures
-- Performance baselines and tracking
-
-✅ **Comprehensive Documentation**
-- 3,600+ lines of documentation
-- Architecture & design explanations
-- Deployment & operations guides
-- Troubleshooting procedures
-- Runbooks for common incidents
-
-✅ **Security & Compliance**
-- Encryption at rest and in transit
-- Least privilege IAM policies
-- Secrets management
-- Security audit checklist
-- Network isolation
+- **Frontend CSP Fix** — Dashboard JavaScript extracted to external file, removing `upgrade-insecure-requests` that caused browser connection timeouts
+- **CloudWatch Logs VPC Endpoint** — ECS Fargate tasks no longer fail to start due to missing log endpoint
+- **Terraform State Management** — New tools for viewing/unlocking S3 state locks, automatic retry with `-lock=false` fallback
+- **Secrets Manager Integration** — DB password auto-retrieved from Secrets Manager during Terraform operations
+- **Test Coverage Expansion** — New test suites for auth, error handling, logging, and metrics
 
 ---
 
-## Documentation Delivered
+## Changes from v1.0.0
 
-| Document | Purpose | Lines | Audience |
-|----------|---------|-------|----------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design & components | 745 | Engineers, Architects |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Step-by-step deployment | 530 | DevOps, Cloud Engineers |
-| [OPERATIONS.md](docs/OPERATIONS.md) | Operational procedures | 1000+ | Operations, SRE |
-| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Problem solving | 900+ | All Technical Staff |
-| [MONITORING.md](docs/MONITORING.md) | Monitoring & alerting | 650+ | Operations, DevOps |
-| [README.md](README.md) | Project overview | 450+ | Everyone |
-| [CHANGELOG.md](CHANGELOG.md) | Release notes | 300+ | Everyone |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines | 400+ | Contributors |
-| Supporting docs | Load testing, cost analysis, security | 500+ | Project specific |
-| **TOTAL** | **Complete System Documentation** | **~5,000 lines** | **All Levels** |
+### Added
+- `services/frontend/app.js` — External JavaScript for CSP-compliant dashboard
+- `scripts/unlock-terraform-state.sh` — State lock management utility (view/unlock/help)
+- CloudWatch Logs VPC endpoint in `terraform/modules/networking/main.tf`
+- 5 new test files: auth, error-handler, logger, metrics-error, extended API tests
+- Auto DB password retrieval in `scripts/resource-control.sh`
+- Terraform retry logic with 412 error detection and `-lock=false` fallback
 
----
+### Fixed
+- Frontend `app.js` connection timeout (CSP `upgrade-insecure-requests` → removed)
+- ECS tasks 0/2 running (missing CloudWatch Logs VPC endpoint)
+- Terraform S3 state lock 412 PreconditionFailed errors
+- Docker COPY path for frontend files
+- Express static file serving path
 
-## Features Delivered
-
-### Application (Node.js/Express)
-
-```
-✅ Health check endpoint (GET /health)
-✅ API status endpoint (GET /api/status)
-✅ Metrics export (GET /metrics - Prometheus format)
-✅ Error handling & structured logging
-✅ Database integration (PostgreSQL)
-✅ Security headers & CORS
-✅ Rate limiting
-✅ Input validation
-✅ Comprehensive test suite
-✅ TypeScript for type safety
-```
-
-### Infrastructure (AWS/Terraform)
-
-```
-✅ VPC with public/private subnets
-✅ Application Load Balancer
-✅ ECS Fargate (serverless containers)
-✅ RDS PostgreSQL with encryption
-✅ Auto-scaling (2-6 tasks)
-✅ Security group isolation
-✅ IAM roles with least privilege
-✅ CloudWatch monitoring & alarms
-✅ ECR container registry
-✅ NAT Gateway for private subnets
-```
-
-### DevOps & CI/CD
-
-```
-✅ GitHub Actions automation
-✅ Automated docker builds
-✅ Push to ECR on every commit
-✅ Rolling deployments
-✅ Health checks
-✅ Automatic rollback on failure
-✅ Terraform state management
-✅ Cost monitoring
-```
-
-### Documentation
-
-```
-✅ Architecture overview
-✅ Network diagrams
-✅ Deployment procedures
-✅ Operational runbooks
-✅ Troubleshooting guides
-✅ Monitoring setup
-✅ Security checklist
-✅ Cost analysis
-✅ Load testing guide
-✅ Contributing guidelines
-```
+### Removed
+- `DIAGNOSTICS-SECRETS-MANAGER-ISSUE.md` (issue resolved)
+- Stray AWS CLI command files from project root
+- Terraform plan output files
 
 ---
 
@@ -243,19 +162,20 @@ See [cost-analysis.md](docs/cost-analysis.md) for details.
 ```
 Status: ✅ DEPLOYED
 Environment: AWS eu-north-1
-Version: 1.0.0
+Version: 1.2.0
 Health: ✅ All systems operational
-Last Deployment: March 9, 2026
+Last Deployment: March 11, 2026
 ```
 
 ### Infrastructure Status
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| ECS Cluster | ✅ Running | 2-6 tasks active |
+| ECS Cluster | ✅ Running | 2 tasks active |
 | RDS Database | ✅ Available | PostgreSQL 15.4, encrypted |
 | ALB | ✅ Active | Health checks passing |
-| Security | ✅ Configured | All rules in place |
+| VPC Endpoints | ✅ All 5 active | secretsmanager, ecr.api, ecr.dkr, s3, logs |
+| Security | ✅ Configured | CSP, Helmet, all rules in place |
 | Monitoring | ✅ Active | CloudWatch metrics flowing |
 | CI/CD | ✅ Ready | Auto-deploys on push |
 

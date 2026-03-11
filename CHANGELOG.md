@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - March 11, 2026
+
+### 🚀 Frontend & Infrastructure Hardening
+
+#### ✨ Added
+
+**Frontend Dashboard:**
+- Extracted inline JavaScript to external `services/frontend/app.js` for CSP compliance
+- Replaced inline `onclick` handlers with `addEventListener` bindings
+- Dashboard now fully functional under Helmet's strict Content-Security-Policy
+
+**Infrastructure:**
+- CloudWatch Logs VPC endpoint (`com.amazonaws.eu-north-1.logs`) for ECS task log delivery
+- All 5 VPC endpoints now deployed: secretsmanager, ecr.api, ecr.dkr, s3, logs
+
+**Scripts & Tooling:**
+- `scripts/unlock-terraform-state.sh` — view and manage Terraform S3 state locks
+- Enhanced `scripts/resource-control.sh` with:
+  - Auto-retrieval of DB password from Secrets Manager (`setup_terraform_password_env`)
+  - Terraform plan retry logic with progressive backoff
+  - Automatic `-lock=false` fallback on S3 412 PreconditionFailed errors
+  - Lock handling for apply operations
+
+**Tests:**
+- `auth.test.js` — API key authentication middleware tests
+- `error-handler.test.js` — global error handler coverage
+- `logger.test.js` — structured logging tests
+- `metrics-error.test.js` — Prometheus metrics error path tests
+- Extended `api.test.js` with additional endpoint coverage
+
+#### 🔧 Fixed
+
+- **Frontend connection timeout:** Removed `upgrade-insecure-requests` from Helmet CSP — was causing browsers to upgrade HTTP fetch calls to HTTPS, timing out against HTTP-only ALB
+- **ECS tasks stuck at 0/2 running:** Added missing CloudWatch Logs VPC endpoint — Fargate requires it to validate log configuration before starting tasks
+- **Terraform 412 errors:** S3 backend lock mechanism was failing; added automatic retry with `-lock=false` fallback
+- **Terraform DB password prompts:** `db_password` variable now auto-fetched from Secrets Manager instead of requiring manual input
+- **Docker COPY path:** Corrected frontend file path in Dockerfile (`COPY services/frontend ./frontend`)
+- **Express static serving:** Fixed `path.join(__dirname, 'frontend')` path for serving frontend files
+
+#### 🔒 Security
+
+- Explicit CSP directives with `useDefaults: false` — full control over Content-Security-Policy
+- Removed `upgrade-insecure-requests` directive (not applicable without HTTPS on ALB)
+- All other Helmet security headers maintained (HSTS, X-Frame-Options, X-Content-Type-Options, etc.)
+
+#### 🗑️ Removed
+
+- Deprecated `DIAGNOSTICS-SECRETS-MANAGER-ISSUE.md` (issue resolved in v1.0.0)
+- Stray AWS CLI command files from project root
+- Terraform plan output files
+
+---
+
 ## [1.0.0] - March 9, 2026
 
 ### 🎉 Initial Release - Production Ready

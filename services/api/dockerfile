@@ -21,7 +21,7 @@ COPY --from=dependencies --chown=nodejs:nodejs /app/node_modules ./node_modules
 
 COPY --chown=nodejs:nodejs services/api . 
 
-COPY --chown=nodejs:nodejs services/frontend ../frontend
+COPY --chown=nodejs:nodejs services/frontend ./frontend
 
 USER nodejs
 

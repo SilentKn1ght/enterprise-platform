@@ -236,7 +236,9 @@ enterprise-platform/
 │   │   ├── Dockerfile
 │   │   ├── package.json
 │   │   └── __tests__/
-│   └── frontend/                    # HTML dashboard (optional)
+│   └── frontend/                    # HTML dashboard
+│       ├── index.html
+│       └── app.js
 ├── monitoring/
 │   ├── grafana/
 │   ├── prometheus/
@@ -244,6 +246,7 @@ enterprise-platform/
 ├── scripts/
 │   ├── load-test.sh
 │   ├── resource-control.sh
+│   ├── unlock-terraform-state.sh
 │   └── aws-cost-audit.sh
 ├── .github/workflows/
 │   └── test.yml                     # GitHub Actions CI/CD
@@ -321,7 +324,7 @@ Real-time alerts for:
 - High error rate (>5%)
 - Slow response times (>1s)
 
-All alerts send to CloudWatch. See [OPERATIONS.md](docs/OPERATIONS.md) for runbooks.
+All alerts send to CloudWatch. See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for runbooks.
 
 ---
 
@@ -399,7 +402,7 @@ MIT License - See LICENSE file
 ## ❓ FAQ
 
 **Q: Is this for learning or production?**  
-A: Both. It follows production best practices but is optimized for cost in development. See DEPLOYMENT.md for production configuration changes.
+A: Both. It follows production best practices but is optimized for cost in development. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for production configuration changes.
 
 **Q: How much does it cost?**  
 A: ~€120/month for development environment. Costs scale with traffic. See cost-analysis.md for details.
@@ -411,20 +414,20 @@ A: Yes. Change `aws_region` in terraform.tfvars. Pricing varies by region.
 A: Edit services/api/app.js, push to main, and GitHub Actions auto-deploys.
 
 **Q: Can I scale this to production?**  
-A: Yes. See DEPLOYMENT.md for production configuration recommendations.
+A: Yes. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for production configuration recommendations.
 
 ---
 
 ## 🆘 Need Help?
 
-1. **Deployment issues?** → See [DEPLOYMENT.md](docs/DEPLOYMENT.md)
-2. **System broken?** → See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-3. **Need to operate it?** → See [OPERATIONS.md](docs/OPERATIONS.md)
-4. **Want to understand it?** → See [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+1. **System broken?** → See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+2. **Want to understand it?** → See [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+3. **Load testing?** → See [Load-Testing-Guide.md](docs/Load-Testing-Guide.md)
+4. **Security audit?** → See [security-audit-checklist.md](docs/security-audit-checklist.md)
 5. **Something else?** → Check AWS console or AWS support
 
 ---
 
-**Last Updated:** March 8, 2026  
-**Version:** 1.0.0  
+**Last Updated:** March 11, 2026  
+**Version:** 1.2.0  
 **Maintainer:** [SilentKn1ght](https://github.com/SilentKn1ght)
