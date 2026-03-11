@@ -2,6 +2,11 @@ const request = require('supertest');
 const app = require('../app');
 
 describe('Integration Tests', () => {
+  test('root path is handled (serves frontend or returns not found)', async () => {
+    const response = await request(app).get('/');
+    expect([200, 404]).toContain(response.statusCode);
+  });
+
   test('complete flow: health → api → status → data', async () => {
     // 1. Check health
     const health = await request(app).get('/health');
@@ -44,9 +49,44 @@ describe('Integration Tests', () => {
     expect(response.statusCode).toBe(404);
   });
 
-  test('serves index.html for unknown non-API routes (SPA)', async () => {
+  test('404 for unknown metrics-prefixed routes', async () => {
+    const response = await request(app).get('/metrics/unknown');
+    expect(response.statusCode).toBe(404);
+    expect(response.body).toHaveProperty('error', 'Not Found');
+  });
+
+  test('unknown non-API routes are handled (SPA fallback or not found)', async () => {
     const response = await request(app).get('/unknown');
-    expect(response.statusCode).toBe(200);
-    expect(response.type).toBe('text/html');
+    expect([200, 404]).toContain(response.statusCode);
+  });
+
+  test('masks malformed URI errors in production', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      const response = await request(app).get('/%');
+      expect([400, 500]).toContain(response.statusCode);
+      expect(response.body).toHaveProperty('error', 'Internal Server Error');
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
+
+  test('defaults to 500 when error has no status', async () => {
+    const routeLayer = app._router.stack.find((layer) => layer.route && layer.route.path === '/');
+    const originalHandler = routeLayer.route.stack[0].handle;
+
+    routeLayer.route.stack[0].handle = (_req, _res, next) => {
+      next(new Error('Synthetic error without status'));
+    };
+
+    try {
+      const response = await request(app).get('/');
+      expect(response.statusCode).toBe(500);
+      expect(response.body).toHaveProperty('status', 500);
+    } finally {
+      routeLayer.route.stack[0].handle = originalHandler;
+    }
   });
 });

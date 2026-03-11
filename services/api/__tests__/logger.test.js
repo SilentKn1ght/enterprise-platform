@@ -1,9 +1,7 @@
 const logger = require('../utils/logger');
 const fs = require('fs');
-const path = require('path');
 
 jest.mock('fs');
-jest.mock('path');
 
 describe('Logger Utility', () => {
   let originalEnv;
@@ -39,6 +37,14 @@ describe('Logger Utility', () => {
       expect(parsed.message).toBe('No data');
       expect(parsed.level).toBe('WARN');
     });
+
+    test('uses development env when NODE_ENV is not set', () => {
+      delete process.env.NODE_ENV;
+      const result = logger.formatLog('INFO', 'Env fallback');
+      const parsed = JSON.parse(result);
+
+      expect(parsed.env).toBe('development');
+    });
   });
 
   describe('log', () => {
@@ -65,25 +71,35 @@ describe('Logger Utility', () => {
 
       expect(fs.appendFileSync).not.toHaveBeenCalled();
     });
+
+    test('uses default data object when data is omitted', () => {
+      logger.log('INFO', 'No data argument');
+      const payload = JSON.parse(console.log.mock.calls[0][0]);
+      expect(payload.level).toBe('INFO');
+      expect(payload.message).toBe('No data argument');
+    });
   });
 
   describe('convenience methods', () => {
     test('info() logs at INFO level', () => {
-      jest.spyOn(logger, 'log').mockImplementation();
       logger.info('Info message', { data: 'test' });
-      expect(logger.log).toHaveBeenCalledWith('INFO', 'Info message', { data: 'test' });
+      const payload = JSON.parse(console.log.mock.calls[0][0]);
+      expect(payload.level).toBe('INFO');
+      expect(payload.message).toBe('Info message');
     });
 
     test('error() logs at ERROR level', () => {
-      jest.spyOn(logger, 'log').mockImplementation();
       logger.error('Error message', { err: 'Something broke' });
-      expect(logger.log).toHaveBeenCalledWith('ERROR', 'Error message', { err: 'Something broke' });
+      const payload = JSON.parse(console.log.mock.calls[0][0]);
+      expect(payload.level).toBe('ERROR');
+      expect(payload.message).toBe('Error message');
     });
 
     test('warn() logs at WARN level', () => {
-      jest.spyOn(logger, 'log').mockImplementation();
       logger.warn('Warning message', { code: 429 });
-      expect(logger.log).toHaveBeenCalledWith('WARN', 'Warning message', { code: 429 });
+      const payload = JSON.parse(console.log.mock.calls[0][0]);
+      expect(payload.level).toBe('WARN');
+      expect(payload.message).toBe('Warning message');
     });
 
     test('debug() logs only in non-production', () => {
@@ -98,6 +114,20 @@ describe('Logger Utility', () => {
       process.env.NODE_ENV = 'production';
       logger.debug('Debug message', {});
       expect(logger.log).not.toHaveBeenCalled();
+    });
+
+    test('convenience methods support omitted data argument', () => {
+      jest.spyOn(logger, 'log').mockImplementation();
+
+      logger.info('Info without data');
+      logger.error('Error without data');
+      logger.warn('Warn without data');
+      logger.debug('Debug without data');
+
+      expect(logger.log).toHaveBeenCalledWith('INFO', 'Info without data', {});
+      expect(logger.log).toHaveBeenCalledWith('ERROR', 'Error without data', {});
+      expect(logger.log).toHaveBeenCalledWith('WARN', 'Warn without data', {});
+      expect(logger.log).toHaveBeenCalledWith('DEBUG', 'Debug without data', {});
     });
   });
 

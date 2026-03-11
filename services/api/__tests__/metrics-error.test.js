@@ -1,6 +1,5 @@
 const request = require('supertest');
 const express = require('express');
-const prom = require('prom-client');
 
 // Create a test app with mocked metrics
 describe('Metrics Endpoint Coverage', () => {
