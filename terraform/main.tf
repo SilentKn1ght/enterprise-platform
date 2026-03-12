@@ -8,15 +8,22 @@ terraform {
     }
   }
 
-  # Remote state backend for team collaboration
-  # Configure via backend config file or CLI flags:
-  # terraform init -backend-config="bucket=enterprise-platform-tfstate" \
-  #                -backend-config="key=prod/terraform.tfstate" \
-  #                -backend-config="region=eu-north-1"
+  # Remote state backend with DynamoDB locking.
+  # Bootstrap the bucket + table once with: ./scripts/bootstrap-tfstate.sh
+  # Then initialise with:
+  #   terraform init \
+  #     -backend-config="bucket=enterprise-platform-tfstate-<account_id>" \
+  #     -backend-config="key=prod/terraform.tfstate" \
+  #     -backend-config="region=eu-north-1" \
+  #     -backend-config="dynamodb_table=enterprise-platform-tfstate-lock"
+  #
+  # In CI these values are passed automatically by the terraform.yml workflow.
   backend "s3" {
-    # Values provided via -backend-config flags during init
-    encrypt      = true
-    use_lockfile = true
+    # All values provided via -backend-config flags during init
+    encrypt = true
+    # dynamodb_table is passed via -backend-config to enable atomic locking.
+    # DynamoDB prevents concurrent applies and leaves no stale lock files
+    # if a process is interrupted (TTL on the lock item handles cleanup).
   }
 }
 
