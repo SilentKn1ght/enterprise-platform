@@ -97,9 +97,6 @@ module "ecs" {
   alb_name           = module.alb.alb_name
   target_group_name  = module.alb.target_group_name
 
-  # Grafana Configuration
-  grafana_password = var.grafana_password
-  grafana_deploy   = var.grafana_deploy
 }
 
 # RDS Module
