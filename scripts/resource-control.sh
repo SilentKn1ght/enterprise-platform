@@ -152,8 +152,46 @@ get_tfstate_bucket() {
     aws s3 ls --region "$AWS_REGION" 2>/dev/null | grep -oP 'enterprise-platform-tfstate-\d+' | head -1
 }
 
+ensure_lock_table_exists() {
+    if aws dynamodb describe-table \
+        --table-name "$TF_LOCK_TABLE" \
+        --region "$AWS_REGION" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    print_warning "Terraform lock table '$TF_LOCK_TABLE' not found. Creating it..."
+
+    if ! aws dynamodb create-table \
+        --table-name "$TF_LOCK_TABLE" \
+        --region "$AWS_REGION" \
+        --attribute-definitions AttributeName=LockID,AttributeType=S \
+        --key-schema AttributeName=LockID,KeyType=HASH \
+        --billing-mode PAY_PER_REQUEST >/dev/null; then
+        print_error "Failed to create DynamoDB lock table '$TF_LOCK_TABLE'"
+        print_info "Run ./scripts/bootstrap-tfstate.sh --region $AWS_REGION --env $ENVIRONMENT"
+        return 1
+    fi
+
+    print_info "Waiting for lock table to become active..."
+    if ! aws dynamodb wait table-exists \
+        --table-name "$TF_LOCK_TABLE" \
+        --region "$AWS_REGION"; then
+        print_error "Lock table creation did not complete"
+        return 1
+    fi
+
+    # Best-effort: enable TTL; ignore if already configured or not allowed.
+    aws dynamodb update-time-to-live \
+        --table-name "$TF_LOCK_TABLE" \
+        --region "$AWS_REGION" \
+        --time-to-live-specification "Enabled=true,AttributeName=LockID" >/dev/null 2>&1 || true
+
+    print_success "Created Terraform lock table '$TF_LOCK_TABLE'"
+}
+
 terraform_init_with_backend() {
     local bucket
+    local tf_init_output
     bucket=$(get_tfstate_bucket)
 
     if [ -z "$bucket" ]; then
@@ -162,14 +200,69 @@ terraform_init_with_backend() {
         return 1
     fi
 
-    print_info "Initializing Terraform backend with DynamoDB locking..."
-    terraform init \
+    print_info "Initializing Terraform backend with S3 lockfile..."
+
+    if tf_init_output=$(terraform init \
         -upgrade \
         -backend-config="bucket=$bucket" \
         -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
         -backend-config="region=$AWS_REGION" \
-        -backend-config="dynamodb_table=$TF_LOCK_TABLE" \
-        -input=false
+        -backend-config="use_lockfile=true" \
+        -input=false 2>&1); then
+        echo "$tf_init_output"
+        return 0
+    fi
+
+    echo "$tf_init_output"
+
+    if echo "$tf_init_output" | grep -qi "Backend configuration changed"; then
+        print_warning "Terraform backend config changed; retrying init with -reconfigure"
+        if terraform init \
+            -reconfigure \
+            -backend-config="bucket=$bucket" \
+            -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="use_lockfile=true" \
+            -input=false; then
+            return 0
+        fi
+    fi
+
+    # Fallback for older Terraform versions that do not support use_lockfile.
+    if echo "$tf_init_output" | grep -Eqi "unsupported argument|invalid backend configuration argument|use_lockfile"; then
+        print_warning "Terraform lockfile mode not supported; falling back to DynamoDB state locking"
+
+        if ! ensure_lock_table_exists; then
+            return 1
+        fi
+
+        if tf_init_output=$(terraform init \
+            -upgrade \
+            -backend-config="bucket=$bucket" \
+            -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="dynamodb_table=$TF_LOCK_TABLE" \
+            -input=false 2>&1); then
+            echo "$tf_init_output"
+            return 0
+        fi
+
+        echo "$tf_init_output"
+
+        if echo "$tf_init_output" | grep -qi "Backend configuration changed"; then
+            print_warning "Retrying fallback backend init with -reconfigure"
+            terraform init \
+                -reconfigure \
+                -backend-config="bucket=$bucket" \
+                -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
+                -backend-config="region=$AWS_REGION" \
+                -backend-config="dynamodb_table=$TF_LOCK_TABLE" \
+                -input=false
+            return $?
+        fi
+    fi
+
+    return 1
 }
 
 get_terraform_lock_id() {
@@ -812,17 +905,29 @@ delete_alb() {
     echo "  5. Recreation takes ~5 minutes"
     echo ""
     
-    # Check if ECS service is running
+    # Check if ECS service has any running or desired tasks.
+    # We require both to be 0 before ALB deletion to avoid traffic disruption.
     RUNNING_COUNT=$(aws ecs describe-services \
         --cluster "$CLUSTER_NAME" \
         --services "$SERVICE_NAME" \
         --region "$AWS_REGION" \
         --query 'services[0].runningCount' \
-        --output text)
-    
-    if [ "$RUNNING_COUNT" -gt 0 ]; then
-        print_error "ERROR: ECS service is still running ($RUNNING_COUNT tasks)"
-        print_info "Stop the ECS service first before deleting ALB"
+        --output text 2>/dev/null || echo "0")
+
+    DESIRED_COUNT=$(aws ecs describe-services \
+        --cluster "$CLUSTER_NAME" \
+        --services "$SERVICE_NAME" \
+        --region "$AWS_REGION" \
+        --query 'services[0].desiredCount' \
+        --output text 2>/dev/null || echo "0")
+
+    # Normalize possible AWS CLI text outputs like "None"/"null" to 0.
+    [[ "$RUNNING_COUNT" =~ ^[0-9]+$ ]] || RUNNING_COUNT=0
+    [[ "$DESIRED_COUNT" =~ ^[0-9]+$ ]] || DESIRED_COUNT=0
+
+    if [ "$RUNNING_COUNT" -gt 0 ] || [ "$DESIRED_COUNT" -gt 0 ]; then
+        print_error "ERROR: ECS service is not fully stopped (desired=$DESIRED_COUNT, running=$RUNNING_COUNT)"
+        print_info "Run stop-ecs first, then retry ALB deletion"
         return
     fi
     
@@ -846,7 +951,6 @@ delete_alb() {
     if ! terraform plan \
         -destroy \
         -target="module.alb.aws_lb.main" \
-        -target="module.alb.aws_lb_target_group.app" \
         -target="module.alb.aws_lb_listener.http" \
         -target="module.alb.aws_cloudwatch_metric_alarm.alb_unhealthy_hosts" \
         -target="module.alb.aws_cloudwatch_metric_alarm.alb_target_response_time" \
