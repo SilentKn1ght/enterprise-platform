@@ -194,32 +194,6 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
   }
 }
 
-# RDS Storage Space Alarm
-resource "aws_cloudwatch_metric_alarm" "rds_storage_low" {
-  count               = var.db_instance_id != "" ? 1 : 0
-  alarm_name          = "${var.project_name}-${var.environment}-rds-storage-low"
-  comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = "FreeStorageSpace"
-  namespace           = "AWS/RDS"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 1073741824  # 1GB in bytes
-  alarm_description   = "Alert when RDS free storage below 1GB"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    DBInstanceIdentifier = var.db_instance_id
-  }
-
-  alarm_actions = [aws_sns_topic.platform_alerts.arn]
-  
-  tags = {
-    Environment = var.environment
-    Project     = var.project_name
-  }
-}
-
 # ===== ALB ALARMS =====
 
 # ALB Target Health Alarm
